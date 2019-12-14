@@ -37,20 +37,23 @@ const (
 	SEQ
 	// QUAL corresponds to SAM record quality.
 	QUAL
+	// LENGTH corresponds to the alignment length.
+	LENGTH
 )
 
 var keywords = map[string]Keyword{
-	"QNAME": QNAME,
-	"FLAG":  FLAG,
-	"RNAME": RNAME,
-	"POS":   POS,
-	"MAPQ":  MAPQ,
-	"CIGAR": CIGAR,
-	"RNEXT": RNEXT,
-	"PNEXT": PNEXT,
-	"TLEN":  TLEN,
-	"SEQ":   SEQ,
-	"QUAL":  QUAL,
+	"QNAME":  QNAME,
+	"FLAG":   FLAG,
+	"RNAME":  RNAME,
+	"POS":    POS,
+	"MAPQ":   MAPQ,
+	"CIGAR":  CIGAR,
+	"RNEXT":  RNEXT,
+	"PNEXT":  PNEXT,
+	"TLEN":   TLEN,
+	"SEQ":    SEQ,
+	"QUAL":   QUAL,
+	"LENGTH": LENGTH,
 }
 
 // readerSAM is a common interface for SAM/BAM readers and is used as
@@ -116,7 +119,6 @@ func (r *Reader) ReadAll() ([]*sam.Record, error) {
 
 		records = append(records, rec)
 	}
-	return records, nil
 }
 
 // allTrue applies all filters to rec and returns true if all return true.
@@ -167,6 +169,15 @@ func Rname(val string, op ql.Token) FilterFunc {
 // record alignment position.
 func Pos(val int, op ql.Token) FilterFunc {
 	f := getPlaceholderInt[POS]
+	return func(rec *sam.Record) bool {
+		return CompInt(f(rec), val, op)
+	}
+}
+
+// Length returns a FilterFunc that compares the given value to the sam
+// record alignment length.
+func Length(val int, op ql.Token) FilterFunc {
+	f := getPlaceholderInt[LENGTH]
 	return func(rec *sam.Record) bool {
 		return CompInt(f(rec), val, op)
 	}
@@ -336,11 +347,12 @@ var getPlaceholderStr = map[Keyword]placeholderStr{
 
 // getPlaceholderInt associates a SamField with a placeholderInt.
 var getPlaceholderInt = map[Keyword]placeholderInt{
-	FLAG:  func(rec *sam.Record) int { return int(rec.Flags) },
-	POS:   func(rec *sam.Record) int { return rec.Pos },
-	MAPQ:  func(rec *sam.Record) int { return int(rec.MapQ) },
-	PNEXT: func(rec *sam.Record) int { return rec.MatePos },
-	TLEN:  func(rec *sam.Record) int { return rec.TempLen },
+	FLAG:   func(rec *sam.Record) int { return int(rec.Flags) },
+	POS:    func(rec *sam.Record) int { return rec.Pos },
+	MAPQ:   func(rec *sam.Record) int { return int(rec.MapQ) },
+	PNEXT:  func(rec *sam.Record) int { return rec.MatePos },
+	TLEN:   func(rec *sam.Record) int { return rec.TempLen },
+	LENGTH: func(rec *sam.Record) int { return rec.Len() },
 }
 
 // eval evaluates the inferred values of a and b using the operator op. eval
