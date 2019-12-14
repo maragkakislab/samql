@@ -14,7 +14,7 @@ import (
 )
 
 // VERSION defines the program version.
-const VERSION = "0.1"
+const VERSION = "0.2"
 
 // Opts is the struct with the options that the program accepts.
 // Opts encapsulates common command line options.
@@ -35,15 +35,21 @@ func main() {
 	arg.MustParse(&opts)
 
 	// Open file for reading.
-	fh, err := os.Open(opts.Input)
-	if err != nil {
-		log.Fatalf("cannot open file: %v", err)
+	var fh *os.File
+	var err error
+	if opts.Input == "-" {
+		fh = os.Stdin
+	} else {
+		fh, err = os.Open(opts.Input)
+		if err != nil {
+			log.Fatalf("cannot open file: %v", err)
+		}
 	}
 
 	// Open SAM/BAM reader.
 	br, err := bam.NewReader(fh, 2)
 	if err != nil {
-		fh.Close()
+		_ = fh.Close()
 		log.Fatalf("cannot create sam reader: %v", err)
 	}
 
@@ -71,7 +77,13 @@ func main() {
 	if !opts.Count {
 		// Create a writer that writes to STDOUT.
 		stdout := bufio.NewWriter(os.Stdout)
-		defer stdout.Flush()
+		defer func() {
+			err := stdout.Flush()
+			if err != nil {
+				log.Fatalf("flashing of stdout cache failed: %v", err)
+			}
+		}()
+
 		w, err = sam.NewWriter(stdout, br.Header(), sam.FlagDecimal)
 		if err != nil {
 			log.Fatalf("write of header failed: %v", err)
