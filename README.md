@@ -1,8 +1,6 @@
 # samql [![Go Report Card](https://goreportcard.com/badge/github.com/mnsmar/samql)](https://goreportcard.com/report/github.com/mnsmar/samql) [![Build Status](https://travis-ci.org/mnsmar/samql.svg?branch=master)](https://travis-ci.org/mnsmar/samql) [![GoDoc](https://godoc.org/github.com/mnsmar/samql?status.svg)](https://godoc.org/github.com/mnsmar/samql)
 SQL-like query language for the SAM/BAM file format
 
-**The library is under active development and the API is considered unstable**
-
 ## Install
 `go get github.com/mnsmar/samql`
 
