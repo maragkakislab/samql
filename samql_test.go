@@ -21,11 +21,13 @@ func Must(f FilterFunc, err error) FilterFunc {
 const samData = `@HD	VN:1.5	SO:coordinate
 @SQ	SN:chr1	LN:45
 @SQ	SN:chr2	LN:100
+@SQ	SN:1	LN:45
 r001	99	chr1	7	30	8M2I4M1D3M	=	37	39	TTAGATAAAGGATACTG	*
 r002	0	chr1	9	30	3S6M1P1I4M	*	0	0	AAAAGATAAGGATA	*
 r003	0	chr1	16	30	6M14N5M	*	0	0	ATAGCTTCAGC	*
 r001	147	chr1	37	30	9M	=	7	-39	CAGCGGCAT	*	NM:i:1
 r004	0	chr2	40	30	6M14N5M	*	0	0	ATAGCTTCAGC	*
+r005	0	1	40	30	6M14N5M	*	0	0	ATAGCTTCAGC	*
 `
 
 var readTests = []struct {
@@ -37,7 +39,7 @@ var readTests = []struct {
 	{
 		Test:   "Test1",
 		Data:   samData,
-		RecCnt: 5,
+		RecCnt: 6,
 	},
 	{
 		Test:   "Test2",
@@ -74,7 +76,7 @@ var readTests = []struct {
 	{
 		Test:   "Test6",
 		Data:   samData,
-		RecCnt: 4,
+		RecCnt: 5,
 		Filters: []FilterFunc{
 			Must(Where("RNAME!=\"chr2\"")),
 		},
@@ -90,7 +92,7 @@ var readTests = []struct {
 	{
 		Test:   "Test8",
 		Data:   samData,
-		RecCnt: 1,
+		RecCnt: 2,
 		Filters: []FilterFunc{
 			Must(Where("RNAME!~/^chr1/")),
 		},
@@ -114,7 +116,7 @@ var readTests = []struct {
 	{
 		Test:   "Test11",
 		Data:   samData,
-		RecCnt: 2,
+		RecCnt: 3,
 		Filters: []FilterFunc{
 			Must(Where("POS > 15")),
 		},
@@ -122,7 +124,7 @@ var readTests = []struct {
 	{
 		Test:   "Test12",
 		Data:   samData,
-		RecCnt: 3,
+		RecCnt: 4,
 		Filters: []FilterFunc{
 			Must(Where("POS >= 15")),
 		},
@@ -138,7 +140,7 @@ var readTests = []struct {
 	{
 		Test:   "Test14",
 		Data:   samData,
-		RecCnt: 2,
+		RecCnt: 3,
 		Filters: []FilterFunc{
 			Must(Where("POS > 15.0")),
 		},
@@ -173,6 +175,14 @@ var readTests = []struct {
 		RecCnt: 0,
 		Filters: []FilterFunc{
 			Must(Where("POS = 1")),
+		},
+	},
+	{
+		Test:   "Test18",
+		Data:   samData,
+		RecCnt: 1,
+		Filters: []FilterFunc{
+			Must(Where("RNAME = 1")),
 		},
 	},
 }
