@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 
 	"github.com/biogo/hts/bam"
 	"github.com/biogo/hts/sam"
@@ -437,6 +438,10 @@ func eval(a, b interface{}, op ql.Token) interface{} {
 		case *regexp.Regexp:
 			return FilterFunc(func(rec *sam.Record) bool {
 				return CompStr(a(rec), b.String(), op)
+			})
+		case int64:
+			return FilterFunc(func(rec *sam.Record) bool {
+				return CompStr(a(rec), strconv.FormatInt(b, 10), op)
 			})
 		default:
 			panic("string placeholder can only be evaluated to string or another string placeholder")
