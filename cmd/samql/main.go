@@ -22,6 +22,7 @@ type Opts struct {
 	Input string `arg:"positional,required" help:"file (- for STDIN)"`
 	Where string `arg:"" help:"SQL clause to match records"`
 	Count bool   `arg:"-c" help:"print only the count of matching records"`
+	Sam   bool   `arg:"-S" help:"interpret input as SAM, otherwise BAM"`
 }
 
 // Version returns the program name and version.
@@ -45,26 +46,42 @@ func main() {
 			log.Fatalf("cannot open file: %v", err)
 		}
 	}
-
-	// Open SAM/BAM reader.
-	br, err := bam.NewReader(fh, 2)
-	if err != nil {
-		_ = fh.Close()
-		log.Fatalf("cannot create sam reader: %v", err)
-	}
-
-	// Close all readers at the end.
+	// Close fh at the end.
 	defer func() {
 		if err = fh.Close(); err != nil {
-			log.Fatalf("cannot close sam file: %v", err)
-		}
-		if err = br.Close(); err != nil {
-			log.Fatalf("cannot close sam reader: %v", err)
+			log.Fatalf("cannot close input file: %v", err)
 		}
 	}()
 
+	var r *samql.Reader
+	var header *sam.Header
+	if opts.Sam {
+		// Open SAM/BAM reader.
+		sr, err := sam.NewReader(fh)
+		if err != nil {
+			_ = fh.Close()
+			log.Fatalf("cannot create sam reader: %v", err)
+		}
+		header = sr.Header()
+		r = samql.NewReader(sr)
+	} else {
+		// Open SAM/BAM reader.
+		br, err := bam.NewReader(fh, 2)
+		if err != nil {
+			_ = fh.Close()
+			log.Fatalf("cannot create sam reader: %v", err)
+		}
+		header = br.Header()
+		r = samql.NewReader(br)
+		// Close bam reader at the end.
+		defer func() {
+			if err = br.Close(); err != nil {
+				log.Fatalf("cannot close bam reader: %v", err)
+			}
+		}()
+	}
+
 	// Create new filtering reader that reads from br.
-	r := samql.NewReader(br)
 	if opts.Where != "" {
 		filter, err := samql.Where(opts.Where)
 		if err != nil {
@@ -84,7 +101,7 @@ func main() {
 			}
 		}()
 
-		w, err = sam.NewWriter(stdout, br.Header(), sam.FlagDecimal)
+		w, err = sam.NewWriter(stdout, header, sam.FlagDecimal)
 		if err != nil {
 			log.Fatalf("write of header failed: %v", err)
 		}
