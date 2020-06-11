@@ -1,8 +1,8 @@
-# samql [![Go Report Card](https://goreportcard.com/badge/github.com/mnsmar/samql)](https://goreportcard.com/report/github.com/mnsmar/samql) [![Build Status](https://travis-ci.org/mnsmar/samql.svg?branch=master)](https://travis-ci.org/mnsmar/samql) [![GoDoc](https://godoc.org/github.com/mnsmar/samql?status.svg)](https://godoc.org/github.com/mnsmar/samql)
+# samql [![Go Report Card](https://goreportcard.com/badge/github.com/maragkakislab/samql)](https://goreportcard.com/report/github.com/maragkakislab/samql) [![Build Status](https://travis-ci.org/maragkakislab/samql.svg?branch=master)](https://travis-ci.org/maragkakislab/samql) [![GoDoc](https://godoc.org/github.com/maragkakislab/samql?status.svg)](https://godoc.org/github.com/maragkakislab/samql)
 SQL-like query language for the SAM/BAM file format
 
 ## Install
-`go get github.com/mnsmar/samql`
+`go get github.com/maragkakislab/samql`
 
 ## Objective
 To provide a command line utility and a clean API for filtering SAM/BAM files

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/biogo/hts/sam"
-	"github.com/mnsmar/samql/ql"
+	"github.com/maragkakislab/samql/ql"
 )
 
 // Must is a helper that wraps a call to a function returning (FilterFunc,

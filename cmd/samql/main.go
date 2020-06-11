@@ -10,11 +10,11 @@ import (
 	arg "github.com/alexflint/go-arg"
 	"github.com/biogo/hts/bam"
 	"github.com/biogo/hts/sam"
-	"github.com/mnsmar/samql"
+	"github.com/maragkakislab/samql"
 )
 
 // VERSION defines the program version.
-const VERSION = "0.2"
+const VERSION = "0.3"
 
 // Opts is the struct with the options that the program accepts.
 // Opts encapsulates common command line options.
