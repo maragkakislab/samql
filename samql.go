@@ -8,7 +8,7 @@ import (
 
 	"github.com/biogo/hts/bam"
 	"github.com/biogo/hts/sam"
-	"github.com/mnsmar/samql/ql"
+	"github.com/maragkakislab/samql/ql"
 )
 
 // Keyword corresponds to reserved words that have a special meaning in samql
