@@ -14,7 +14,7 @@ import (
 )
 
 // VERSION defines the program version.
-const VERSION = "0.3.1"
+const VERSION = "0.3.2"
 
 // Opts is the struct with the options that the program accepts.
 // Opts encapsulates common command line options.
@@ -31,8 +31,6 @@ func (Opts) Version() string { return "samql " + VERSION }
 
 // Description returns an extended description of the program.
 func (Opts) Description() string { return "Filters a SAM/BAM file using the SQL clause provided" }
-
-func (p Opts) Test() int { return p.Parr }
 
 func main() {
 	var opts Opts
