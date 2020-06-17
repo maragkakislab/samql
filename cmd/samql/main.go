@@ -14,7 +14,7 @@ import (
 )
 
 // VERSION defines the program version.
-const VERSION = "0.3"
+const VERSION = "0.3.1"
 
 // Opts is the struct with the options that the program accepts.
 // Opts encapsulates common command line options.
@@ -23,6 +23,7 @@ type Opts struct {
 	Where string `arg:"" help:"SQL clause to match records"`
 	Count bool   `arg:"-c" help:"print only the count of matching records"`
 	Sam   bool   `arg:"-S" help:"interpret input as SAM, otherwise BAM"`
+	Parr  int    `arg:"-p" help:"Number of cores for parallelization"`
 }
 
 // Version returns the program name and version.
@@ -30,6 +31,8 @@ func (Opts) Version() string { return "samql " + VERSION }
 
 // Description returns an extended description of the program.
 func (Opts) Description() string { return "Filters a SAM/BAM file using the SQL clause provided" }
+
+func (p Opts) Test() int { return p.Parr }
 
 func main() {
 	var opts Opts
@@ -66,7 +69,7 @@ func main() {
 		r = samql.NewReader(sr)
 	} else {
 		// Open SAM/BAM reader.
-		br, err := bam.NewReader(fh, 2)
+		br, err := bam.NewReader(fh, opts.Parr)
 		if err != nil {
 			_ = fh.Close()
 			log.Fatalf("cannot create sam reader: %v", err)
