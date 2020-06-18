@@ -333,6 +333,9 @@ func (v *evalVisitor) Visit(node ql.Node) ql.Visitor {
 // placeholderInt is a function that returns an integer given a sam.Record.
 type placeholderInt func(*sam.Record) int
 
+// placeholderFloat is a function that returns a float32 given a sam.Record.
+type placeholderFloat func(*sam.Record) float32
+
 // placeholderStr is a function that returns a string given a sam.Record.
 type placeholderStr func(*sam.Record) string
 
@@ -341,7 +344,7 @@ var getPlaceholderStr = map[Keyword]placeholderStr{
 	QNAME: func(rec *sam.Record) string { return rec.Name },
 	RNAME: func(rec *sam.Record) string { return rec.Ref.Name() },
 	CIGAR: func(rec *sam.Record) string { return rec.Cigar.String() },
-	PNEXT: func(rec *sam.Record) string { return rec.MateRef.Name() },
+	RNEXT: func(rec *sam.Record) string { return rec.MateRef.Name() },
 	SEQ:   func(rec *sam.Record) string { return string(rec.Seq.Expand()) },
 	QUAL:  func(rec *sam.Record) string { return string(rec.Qual) },
 }
@@ -356,9 +359,67 @@ var getPlaceholderInt = map[Keyword]placeholderInt{
 	LENGTH: func(rec *sam.Record) int { return rec.Len() },
 }
 
+func getPlaceholderTag(aval string) interface{} {
+	switch typ := aval[3]; typ {
+	case 'i':
+		return placeholderInt(func(rec *sam.Record) int {
+			if aux, ok := rec.Tag([]byte(aval[0:2])); ok {
+				switch v := aux.Value().(type) {
+				case uint8:
+					return int(v)
+				case uint16:
+					return int(v)
+				case uint32:
+					return int(v)
+				case int8:
+					return int(v)
+				case int16:
+					return int(v)
+				case int32:
+					return int(v)
+				}
+			}
+			return 0
+		})
+	case 'Z':
+		return placeholderStr(func(rec *sam.Record) string {
+			if aux, ok := rec.Tag([]byte(aval[0:2])); ok {
+				switch v := aux.Value().(type) {
+				case string:
+					return v
+				}
+			}
+			return ""
+		})
+	case 'A':
+		return placeholderStr(func(rec *sam.Record) string {
+			if aux, ok := rec.Tag([]byte(aval[0:2])); ok {
+				switch v := aux.Value().(type) {
+				case byte:
+					return string(v)
+				}
+			}
+			return ""
+		})
+	case 'f':
+		return placeholderFloat(func(rec *sam.Record) float32 {
+			if aux, ok := rec.Tag([]byte(aval[0:2])); ok {
+				switch v := aux.Value().(type) {
+				case float32:
+					return float32(v)
+				}
+			}
+			return 0.0
+		})
+	default:
+		panic("type " + string(typ) + " in " + aval + " is not supported")
+	}
+}
+
 // eval evaluates the inferred values of a and b using the operator op. eval
 // returns a concrete value, a placeholder or a FilterFunc.
 func eval(a, b interface{}, op ql.Token) interface{} {
+	var validTag = regexp.MustCompile(`^[A-Za-z][A-Za-z]:[AifZHB]`)
 	switch aval := a.(type) {
 	case string:
 		if sf, ok := keywords[aval]; ok {
@@ -367,6 +428,8 @@ func eval(a, b interface{}, op ql.Token) interface{} {
 			} else if fn, ok := getPlaceholderStr[sf]; ok {
 				a = fn
 			}
+		} else if validTag.MatchString(aval) {
+			a = getPlaceholderTag(aval)
 		}
 	}
 
@@ -378,6 +441,8 @@ func eval(a, b interface{}, op ql.Token) interface{} {
 			} else if fn, ok := getPlaceholderStr[sf]; ok {
 				b = fn
 			}
+		} else if validTag.MatchString(bval) {
+			b = getPlaceholderTag(bval)
 		}
 	}
 
@@ -406,7 +471,7 @@ func eval(a, b interface{}, op ql.Token) interface{} {
 				})
 			case ql.BITWISEOR:
 				return placeholderInt(func(rec *sam.Record) int {
-					return a(rec) & int(b)
+					return a(rec) | int(b)
 				})
 			default:
 				return FilterFunc(func(rec *sam.Record) bool {
@@ -417,12 +482,38 @@ func eval(a, b interface{}, op ql.Token) interface{} {
 			return FilterFunc(func(rec *sam.Record) bool {
 				return CompInt(a(rec), b(rec), op)
 			})
+		case placeholderFloat:
+			return FilterFunc(func(rec *sam.Record) bool {
+				return CompInt(a(rec), int(b(rec)), op)
+			})
 		case float64:
 			return FilterFunc(func(rec *sam.Record) bool {
 				return CompInt(a(rec), int(b), op)
 			})
 		default:
 			panic("integer placeholder can only be evaluated to int or another integer placeholder")
+		}
+
+	case placeholderFloat:
+		switch b := b.(type) {
+		case float64:
+			return FilterFunc(func(rec *sam.Record) bool {
+				return CompFloat(a(rec), float32(b), op)
+			})
+		case int64:
+			return FilterFunc(func(rec *sam.Record) bool {
+				return CompFloat(a(rec), float32(b), op)
+			})
+		case placeholderInt:
+			return FilterFunc(func(rec *sam.Record) bool {
+				return CompFloat(a(rec), float32(b(rec)), op)
+			})
+		case placeholderFloat:
+			return FilterFunc(func(rec *sam.Record) bool {
+				return CompFloat(a(rec), b(rec), op)
+			})
+		default:
+			panic("float placeholder can only be evaluated to float or another float placeholder")
 		}
 
 	case placeholderStr:
@@ -453,6 +544,26 @@ func eval(a, b interface{}, op ql.Token) interface{} {
 
 // CompInt compares two integers using the provided operator op.
 func CompInt(a, b int, op ql.Token) bool {
+	switch op {
+	case ql.EQ:
+		return a == b
+	case ql.NEQ:
+		return a != b
+	case ql.LT:
+		return a < b
+	case ql.LTE:
+		return a <= b
+	case ql.GT:
+		return a > b
+	case ql.GTE:
+		return a >= b
+	default:
+		return false
+	}
+}
+
+// CompFloat compares two float32 using the provided operator op.
+func CompFloat(a, b float32, op ql.Token) bool {
 	switch op {
 	case ql.EQ:
 		return a == b

@@ -29,7 +29,7 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 	// a letter, or digit, then consume as an ident, reserved word or number.
 	if isWhitespace(ch0) {
 		return s.scanWhitespace()
-	} else if isLetter(ch0) || ch0 == '_' {
+	} else if isLetter(ch0) || ch0 == '_' || ch0 == ':' {
 		s.r.unread()
 		return s.scanIdent(true)
 	} else if isDigit(ch0) {
@@ -126,8 +126,8 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 		return COMMA, pos, ""
 	case ';':
 		return SEMICOLON, pos, ""
-	case ':':
-		return COLON, pos, ""
+		// case ':':
+		// 	return COLON, pos, ""
 	}
 
 	return ILLEGAL, pos, string(ch0)
@@ -336,7 +336,7 @@ func isDigit(ch rune) bool {
 
 // isIdentChar returns true if the rune can be used in an unquoted identifier.
 func isIdentChar(ch rune) bool {
-	return isLetter(ch) || isDigit(ch) || ch == '_'
+	return isLetter(ch) || isDigit(ch) || ch == '_' || ch == ':'
 }
 
 // isIdentFirstChar returns true if the rune can be used as the first char in an unquoted identifer.
