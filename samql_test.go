@@ -25,9 +25,9 @@ const samData = `@HD	VN:1.5	SO:coordinate
 r001	99	chr1	7	30	8M2I4M1D3M	=	37	39	TTAGATAAAGGATACTG	*
 r002	0	chr1	9	30	3S6M1P1I4M	*	0	0	AAAAGATAAGGATA	*
 r003	0	chr1	16	30	6M14N5M	*	0	0	ATAGCTTCAGC	*
-r001	147	chr1	37	30	9M	=	7	-39	CAGCGGCAT	*	NM:i:1
+r001	147	chr1	37	30	9M	=	7	-39	CAGCGGCAT	*	NM:i:1	MD:Z:TAT	de:f:0.0903
 r004	0	chr2	40	30	6M14N5M	*	0	0	ATAGCTTCAGC	*
-r005	0	1	40	30	6M14N5M	*	0	0	ATAGCTTCAGC	*
+r005	0	1	40	29	6M14N5M	*	0	0	ATAGCTTCAGC	*	NM:i:60000	MD:A:T
 `
 
 var readTests = []struct {
@@ -183,6 +183,150 @@ var readTests = []struct {
 		RecCnt: 1,
 		Filters: []FilterFunc{
 			Must(Where("RNAME = 1")),
+		},
+	},
+	{
+		Test:   "Test18b",
+		Data:   samData,
+		RecCnt: 2,
+		Filters: []FilterFunc{
+			Must(Where("RNAME = RNEXT")),
+		},
+	},
+	{
+		Test:   "Test19-Tag1",
+		Data:   samData,
+		RecCnt: 1,
+		Filters: []FilterFunc{
+			Must(Where("NM:i = 1")),
+		},
+	},
+	{
+		Test:   "Test19-Tag2",
+		Data:   samData,
+		RecCnt: 1,
+		Filters: []FilterFunc{
+			Must(Where("NM:i >= 60000")),
+		},
+	},
+	{
+		Test:   "Test19-Tag3",
+		Data:   samData,
+		RecCnt: 6,
+		Filters: []FilterFunc{
+			Must(Where("NM:i = NM:i")),
+		},
+	},
+	{
+		Test:   "Test19-Tag4",
+		Data:   samData,
+		RecCnt: 4,
+		Filters: []FilterFunc{
+			Must(Where("NM:i = de:f")),
+		},
+	},
+	{
+		Test:   "Test19-Tag6",
+		Data:   samData,
+		RecCnt: 1,
+		Filters: []FilterFunc{
+			Must(Where("de:f = 0.0903")),
+		},
+	},
+	{
+		Test:   "Test19-Tag7",
+		Data:   samData,
+		RecCnt: 1,
+		Filters: []FilterFunc{
+			Must(Where("de:f > 0.0900000000")),
+		},
+	},
+	{
+		Test:   "Test19-Tag8",
+		Data:   samData,
+		RecCnt: 6,
+		Filters: []FilterFunc{
+			Must(Where("de:f <= de:f")),
+		},
+	},
+	{
+		Test:   "Test19-Tag9",
+		Data:   samData,
+		RecCnt: 6,
+		Filters: []FilterFunc{
+			Must(Where("de:f != -60000")),
+		},
+	},
+	{
+		Test:   "Test19-Tag10",
+		Data:   samData,
+		RecCnt: 4,
+		Filters: []FilterFunc{
+			Must(Where("de:f >= NM:i")),
+		},
+	},
+	{
+		Test:   "Test19-Tag11",
+		Data:   samData,
+		RecCnt: 1,
+		Filters: []FilterFunc{
+			Must(Where("MD:A = T")),
+		},
+	},
+	{
+		Test:   "Test19-Tag12",
+		Data:   samData,
+		RecCnt: 1,
+		Filters: []FilterFunc{
+			Must(Where("MD:Z = TAT")),
+		},
+	},
+	{
+		Test:   "Test20",
+		Data:   samData,
+		RecCnt: 1,
+		Filters: []FilterFunc{
+			Must(Where("MAPQ < 30")),
+		},
+	},
+	{
+		Test:   "Test21",
+		Data:   samData,
+		RecCnt: 1,
+		Filters: []FilterFunc{
+			Must(Where("PNEXT >= 36")),
+		},
+	},
+	{
+		Test:   "Test22",
+		Data:   samData,
+		RecCnt: 5,
+		Filters: []FilterFunc{
+			Must(Where("TLEN != 39")),
+		},
+	},
+	{
+		Test:   "Test23",
+		Data:   samData,
+		RecCnt: 1,
+		Filters: []FilterFunc{
+			Must(Where("LENGTH <= 9")),
+		},
+	},
+	{
+		Test:   "Test24",
+		Data:   samData,
+		RecCnt: 4,
+		Filters: []FilterFunc{
+			Must(Where("CIGAR =~ /^[68]M/")),
+		},
+	},
+	{
+		Test:   "Test25",
+		Data:   samData,
+		RecCnt: 3,
+		Filters: []FilterFunc{
+			Must(Where("SEQ =~ /^AT/")),
 		},
 	},
 }

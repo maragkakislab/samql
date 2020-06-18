@@ -53,10 +53,10 @@ const (
 	operatorEnd
 
 	// Structure
-	LPAREN    // (
-	RPAREN    // )
-	COMMA     // ,
-	COLON     // :
+	LPAREN // (
+	RPAREN // )
+	COMMA  // ,
+	//	COLON     // :
 	SEMICOLON // ;
 	DOT       // .
 
@@ -102,10 +102,10 @@ var tokens = [...]string{
 	GT:         ">",
 	GTE:        ">=",
 
-	LPAREN:    "(",
-	RPAREN:    ")",
-	COMMA:     ",",
-	COLON:     ":",
+	LPAREN: "(",
+	RPAREN: ")",
+	COMMA:  ",",
+	// COLON:     ":",
 	SEMICOLON: ";",
 	DOT:       ".",
 
