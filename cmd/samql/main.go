@@ -14,7 +14,7 @@ import (
 )
 
 // VERSION defines the program version.
-const VERSION = "0.3.2"
+const VERSION = "0.3.3"
 
 // Opts is the struct with the options that the program accepts.
 // Opts encapsulates common command line options.
