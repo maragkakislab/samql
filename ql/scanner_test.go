@@ -60,7 +60,6 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `,`, tok: COMMA},
 		{s: `;`, tok: SEMICOLON},
 		{s: `.`, tok: DOT},
-		{s: `:`, tok: COLON},
 
 		// Identifiers
 		{s: `foo`, tok: IDENT, lit: `foo`},
