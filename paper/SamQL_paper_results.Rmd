@@ -1,0 +1,298 @@
+---
+title: "samql manuscript results code"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+# Table of Contents
+
+* [Generating samples](#generating-samples)
+* [Running query tests](#running-query-tests)
+* [Aggregating data](#aggregating-data)
+* [Creating Figs](#figs)
+
+# Generating samples
+
+
+Generating 10 different sizes
+
+save in a .sh script, chmod 755 if needed
+```{bash eval=F}
+FILE='/data/chris/wgEncodeCaltechRnaSeqGm12878R1x75dSplicesRep1V2.bam'
+cd ~
+
+for i in {i..9}
+do
+samtools view -bs 0.$i $FILE > /data/chris/testSam$i.bam
+done
+samtools view -b $FILE > /data/chris/testSam10.bam
+
+```
+
+
+# Running query tests
+
+Empty Query. Unused in manuscript, was used to test printing time
+```{bash}
+echo Empty
+cd ~
+for j in {1..10}
+do
+FILE=$(printf '/data/chris/testSam%s.bam' "$j")
+RESULTSFQ1=$(printf '/data/chris/samResults/testSamResultsEmpty2Samql1c%s.txt' "$j")
+RESULTSFQ2=$(printf '/data/chris/samResults/testSamResultsEmpty2Samql2c%s.txt' "$j")
+RESULTSFT=$(printf '/data/chris/samResults/testSamResultsEmpty2Samtools%s.txt' "$j")
+RESULTSFB=$(printf '/data/chris/samResults/testSamResultsEmpty2Bash%s.txt' "$j")
+samtools index $FILE
+for i in {1..10}
+do
+/usr/bin/time --format="%e" --output=$RESULTSFQ1 -a samql --parr 1 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFQ2 -a samql --parr 2 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFT -a samtools view $FILE > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFB -a samtools view $FILE > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFQ1 -a samql -c --parr 1 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFQ2 -a samql -c --parr 2 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFT -a samtools view -c $FILE > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFB -a samtools view $FILE | wc -l > /dev/null
+done
+done
+
+
+/usr/bin/time samql --parr 2 $FILE > /dev/null
+/usr/bin/time samtools view $FILE > /dev/null
+
+```
+
+
+
+Complex Query
+
+```{bash eval=F}
+echo Complex Query
+cd ~
+for j in {1..10}
+do
+FILE=$(printf '/data/chris/testSam%s.bam' "$j")
+RESULTSFQ1=$(printf '/data/chris/samResults/testSamResultsComplex2Samql1c%s.txt' "$j")
+RESULTSFQ2=$(printf '/data/chris/samResults/testSamResultsComplex2Samql2c%s.txt' "$j")
+RESULTSFT=$(printf '/data/chris/samResults/testSamResultsComplex2Samtools%s.txt' "$j")
+RESULTSFB=$(printf '/data/chris/samResults/testSamResultsComplex2Bash%s.txt' "$j")
+samtools index $FILE
+for i in {1..10}
+do
+/usr/bin/time --format="%e" --output=$RESULTSFQ1 -a samql --where "RNAME = 'chr1' AND POS > 14800 AND POS < 15000" --parr 1 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFQ2 -a samql --where "RNAME = 'chr1' AND POS > 14800 AND POS < 15000" --parr 2 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFT -a samtools view $FILE 'chr1:14800-15000' > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFB -a samtools view $FILE | awk '$3 == "chr1" && $4 > 14800 && $4 < 15000' > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFQ1 -a samql -c --where "RNAME = 'chr1' AND POS > 14800 AND POS < 15000" --parr 1 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFQ2 -a samql -c --where "RNAME = 'chr1' AND POS > 14800 AND POS < 15000" --parr 2 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFT -a samtools view -c $FILE 'chr1:14800-15000' > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFB -a samtools view $FILE | awk '$3 == "chr1" && $4 > 14800 && $4 < 15000' | wc -l > /dev/null
+done
+done
+```
+
+
+
+Tag query
+```{bash eval=F}
+echo TagCC
+cd ~
+for j in {1..10}
+do
+FILE=$(printf '/data/chris/testSam%s.bam' "$j")
+RESULTSFQ1=$(printf '/data/chris/samResults/testSamResultsTagCCSamql1c%s.txt' "$j")
+RESULTSFQ2=$(printf '/data/chris/samResults/testSamResultsTagCCSamql2c%s.txt' "$j")
+RESULTSFT=$(printf '/data/chris/samResults/testSamResultsTagCCSamtools%s.txt' "$j")
+RESULTSFB=$(printf '/data/chris/samResults/testSamResultsTagCCBash%s.txt' "$j")
+samtools index $FILE
+for i in {1..10}
+do
+/usr/bin/time --format="%e" --output=$RESULTSFQ1 -a samql --where "CC:Z = chr15" --parr 1 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFQ2 -a samql --where "CC:Z = chr15" --parr 2 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFT -a samtools view -d CC:chr15 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFB -a samtools view $FILE | grep -P '^@|CC:Z:chr15\b' > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFQ1 -a samql -c --where "CC:Z = chr15" --parr 1 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFQ2 -a samql -c --where "CC:Z = chr15" --parr 2 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFT -a samtools view -c -d CC:chr15 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFB -a samtools view $FILE | grep -P '^@|CC:Z:chr15\b' | wc -l > /dev/null
+done
+done
+```
+
+```{bash eval=F}
+echo TagNH
+cd ~
+for j in {1..10}
+do
+FILE=$(printf '/data/chris/testSam%s.bam' "$j")
+RESULTSFQ1=$(printf '/data/chris/samResults/testSamResultsTagNHSamql1c%s.txt' "$j")
+RESULTSFQ2=$(printf '/data/chris/samResults/testSamResultsTagNHSamql2c%s.txt' "$j")
+RESULTSFT=$(printf '/data/chris/samResults/testSamResultsTagNHSamtools%s.txt' "$j")
+RESULTSFB=$(printf '/data/chris/samResults/testSamResultsTagNHBash%s.txt' "$j")
+samtools index $FILE
+for i in {1..10}
+do
+/usr/bin/time --format="%e" --output=$RESULTSFQ1 -a samql --where "NH:i >= 2" --parr 1 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFQ2 -a samql --where "NH:i >= 2" --parr 2 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFT -a echo  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFB -a samtools view $FILE | perl -n -e'/NH:i:(\d+)/; if($1 >= 2) {print}' > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFQ1 -a samql -c --where "NH:i >= 2" --parr 1 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFQ2 -a samql -c --where "NH:i >= 2" --parr 2 $FILE  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFT -a echo  > /dev/null
+/usr/bin/time --format="%e" --output=$RESULTSFB -a samtools view $FILE | perl -n -e'/NH:i:(\d+)/; if($1 >= 2) {print}'| wc -l > /dev/null
+done
+done
+```
+
+Parallelization tests, same tests as above
+```{bash eval=F}
+FILE='/data/chris/testSam10.bam'
+
+echo Parr Complex
+cd ~
+for p in 1 2 4 8
+do
+RESULTSFQ=$(printf '/data/chris/samResults/testSamResultsComplex2ParrSamql%s.txt' "$p")
+for i in {1..10}
+do
+/usr/bin/time --format="%e" --output=$RESULTSFQ -a samql --where "RNAME = 'chr1' AND POS > 14800 AND POS < 15000" --parr $p $FILE  > /dev/null
+done
+done
+
+echo Parr TagCC
+cd ~
+for p in 1 2 4 8
+do
+RESULTSFQ=$(printf '/data/chris/samResults/testSamResultsTagCCParrSamql%s.txt' "$p")
+for i in {1..10}
+do
+/usr/bin/time --format="%e" --output=$RESULTSFQ -a samql --where "CC:Z = chr15" --parr $p $FILE  > /dev/null
+done
+done
+
+echo Parr TagNH
+cd ~
+for p in 1 2 4 8
+do
+RESULTSFQ=$(printf '/data/chris/samResults/testSamResultsTagNHParrSamql%s.txt' "$p")
+for i in {1..10}
+do
+/usr/bin/time --format="%e" --output=$RESULTSFQ -a samql --where "NH:i >= 2" --parr $p $FILE  > /dev/null
+done
+done
+
+```
+
+
+# Compiling data
+Aggregate the data to transfer to laptop
+```{R eval=F}
+testnames = c("Empty2","Complex2", "TagCC", "TagNH")
+
+samResultsAll = array(0, c(length(testnames), 4, 10, 20))  #Querytype, method, %size, trial
+
+for (i in 1:length(testnames)) {
+	for (k in 1:10) {
+		samResultsAll[i, 1, k, ] = 
+			read.table(sprintf("/data/chris/samResults/testSamResults%sSamql1c%s.txt", testnames[i], k))$V1[1:20]
+		samResultsAll[i, 2, k, ] = 
+			read.table(sprintf("/data/chris/samResults/testSamResults%sSamql2c%s.txt", testnames[i], k))$V1[1:20]
+		samResultsAll[i, 3, k, ] = 
+			read.table(sprintf("/data/chris/samResults/testSamResults%sSamtools%s.txt", testnames[i], k))$V1[1:20]
+		samResultsAll[i, 4, k, ] = 
+			read.table(sprintf("/data/chris/samResults/testSamResults%sBash%s.txt", testnames[i], k))$V1[1:20]
+	}
+}
+
+saveRDS(samResultsAll, "/data/chris/samResults/testSamResults2All.rds")
+```
+
+
+Aggregating parr
+```{R eval=F}
+testnames = c("Complex2", "TagCC", "TagNH")
+
+samResultsAll = array(0, c(length(testnames), 1, 4, 10))  #Querytype, method, %size, trial
+
+for (i in 1:length(testnames)) {
+	for (k in 1:4) {
+		samResultsAll[i, 1, k, ] = 
+			read.table(sprintf("/data/chris/samResults/testSamResults%sParrSamql%s.txt", testnames[i], 2^(k-1)))$V1[1:10]
+	}
+}
+
+saveRDS(samResultsAll, "/data/chris/samResults/testSamResults2ParrAll.rds")
+```
+
+
+# Figs
+
+```{r eval=F}
+samResultsAll = readRDS("~/testSamResults2All.rds")
+testnames = c("Empty2","Complex2", "TagCC", "TagNH")
+
+for (i in 2:length(testnames)) {
+	pdf(sprintf("~/testSamResults%s.pdf",testnames[i]), height = 4, width = 3)
+	plot(0, type = 'n', xlim = c(1,100), ylim = c(0, max(samResultsAll[-1,,,])), main = NULL,
+		 xlab = "% of total data", ylab = "Time (secs)")
+	legend("topleft", legend = c("samql (1 thread)","samql (2)","samtools","bash (2)"), 
+		   col = c(rgb(0,77,77,maxColorValue = 255),
+		   		rgb(70,130,180, maxColorValue = 255),
+		   		rgb(235,193,7, maxColorValue = 255),
+		   		rgb(178,34,34, maxColorValue = 255)), 
+		   pch = 16, cex = 0.8, bty="n")
+	for (k in 1:10) {
+		points(10*rep(k,10), samResultsAll[i,1,k,2*1:10-1], col = rgb(0,77,77,216, maxColorValue = 255))
+		points(10*rep(k,10), samResultsAll[i,3,k,2*1:10-1], col = rgb(235,193,7,216, maxColorValue = 255))	
+		points(10*rep(k,10)-1, samResultsAll[i,4,k,2*1:10-1], col = rgb(178,34,34,216, maxColorValue = 255))
+		points(10*rep(k,10), samResultsAll[i,2,k,2*1:10-1], col = rgb(70,130,180,216, maxColorValue = 255))
+
+		
+	}
+	dev.off()
+
+}
+
+for (i in 2:length(testnames)) {
+	pdf(sprintf("~/testSamResults%sCount.pdf",testnames[i]), height = 4, width = 3)
+	plot(0, type = 'n', xlim = c(1,100), ylim = c(0, max(samResultsAll[-1,,,])), main = NULL,
+		 xlab = "% of total data", ylab = "Time (secs)")
+	legend("topleft", legend = c("samql (1 thread)","samql (2)","samtools","bash (2)"), 
+		   col = c(rgb(0,77,77,maxColorValue = 255),
+		   		rgb(70,130,180, maxColorValue = 255),
+		   		rgb(235,193,7, maxColorValue = 255),
+		   		rgb(178,34,34, maxColorValue = 255)), 
+		   pch = 16, cex = 0.8, bty="n")	
+	for (k in 1:10) {
+		points(10*rep(k,10), samResultsAll[i,1,k,2*1:10], col = rgb(0,77,77,216, maxColorValue = 255))
+		points(10*rep(k,10), samResultsAll[i,3,k,2*1:10], col = rgb(235,193,7,216, maxColorValue = 255))	
+		points(10*rep(k,10)-1, samResultsAll[i,4,k,2*1:10], col = rgb(178,34,34,216, maxColorValue = 255))
+		points(10*rep(k,10), samResultsAll[i,2,k,2*1:10], col = rgb(70,130,180,216, maxColorValue = 255))
+
+		
+	}
+	dev.off()
+
+}
+```
+
+
+```{r eval=F}
+samResultsParrAll = readRDS("~/testSamResults2ParrAll.rds")
+testnames = c("Complex2", "TagCC", "TagNH")
+
+for (i in 1:length(testnames)) {
+	pdf(sprintf("~/testSamResults%sParr.pdf",testnames[i]), height = 4, width = 3)
+
+	plot(0, type = 'n', xlim = c(0,3), ylim = c(0, max(samResultsParrAll)), main = testnames[i],
+		 xlab = "log2 N Cores", ylab = "Time (secs)")
+	#legend("topleft", legend = c("samql"), col = c("blue"), pch = "-")
+	for (k in 1:4) {
+		points(rep(k-1,10), samResultsParrAll[i,1,k,], col = "blue")
+	}
+	dev.off()
+}
+```
+

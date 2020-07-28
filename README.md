@@ -2,7 +2,9 @@
 SQL-like query language for the SAM/BAM file format
 
 ## Install
-`go get github.com/maragkakislab/samql`
+
+`go get github.com/maragkakislab/samql/...`
+
 
 ## Objective
 To provide a command line utility and a clean API for filtering SAM/BAM files
