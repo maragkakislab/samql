@@ -3,14 +3,19 @@ SQL-like query language for the SAM/BAM file format
 
 ## Install
 
+Download the latest executable for your system [here](https://github.com/maragkakislab/samql/releases/latest/).
+
+Otherwise, to install the Go library and executable:
+
 `go get github.com/maragkakislab/samql/...`
 
 
 ## Objective
 To provide a command line utility and a clean API for filtering SAM/BAM files
-using simple SQL-like commands. The samql command already showcases part of
-the envisioned functionality.
+using simple SQL-like commands. The samql command showcases the envisioned
+functionality.
 
+## Usage
 ```bash
 # Simple
 samql --where "RNAME = chr1" test.bam    # Reference name is "chr1"
@@ -26,6 +31,18 @@ samql --where "RNAME = chr1 OR QNAME = read1 AND POS > 100" test.bam
 
 # Counting
 samql -c --where "RNAME = chr1" test.bam
+
+# Very complex
+# Uniquely mapped reads, with both mate pairs on chr1 or
+# chrX that start with 15 matches/mismatches, are shorter
+# than 75 nts or begin with an ATG and are located on the
+# reverse strand.
+samql --where "(RNAME = 'chr1' OR RNAME = 'chrX') AND \
+               (RNEXT = 'chr1' OR RNEXT = 'chrX') AND \
+	       NH:i = 1 AND \
+	       CIGAR =~ /15M/ AND \
+	       (LENGTH < 75 OR SEQ =~ /^ATG/) AND \
+	       FLAG & 16 = 16"
 ```
 
 ## API example
