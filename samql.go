@@ -8,6 +8,7 @@ import (
 
 	"github.com/biogo/hts/bam"
 	"github.com/biogo/hts/sam"
+	"github.com/maragkakislab/samql/bamx"
 	"github.com/maragkakislab/samql/ql"
 )
 
@@ -67,6 +68,7 @@ type readerSAM interface {
 // The github.com/biogo/hts SAM/BAM readers satisfy ReaderInt.
 var _ readerSAM = (*sam.Reader)(nil)
 var _ readerSAM = (*bam.Reader)(nil)
+var _ readerSAM = (*bamx.Reader)(nil)
 
 // FilterFunc is a function that returns true for a SAM record that passes the
 // filter and false otherwise.
@@ -85,6 +87,11 @@ func NewReader(r readerSAM) *Reader {
 		r:       r,
 		Filters: make([]FilterFunc, 0),
 	}
+}
+
+// Header returns the Header of the underlying reader r.
+func (r *Reader) Header() *sam.Header {
+	return r.r.Header()
 }
 
 // Read returns the next *sam.Record from r that passes all filters. Returns
