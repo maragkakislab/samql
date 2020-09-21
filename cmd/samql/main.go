@@ -74,8 +74,12 @@ func main() {
 				idxf, err = os.Open(opts.Input[:len(opts.Input)-4] + ".bai")
 			}
 			if err == nil {
-				// When indexed, turn off parallelization -> faster
-				br, err = bam.NewReader(fh, 1)
+				if rname != "" {
+					// When indexed and a range query is requested, turn off
+					// parallelization -> faster
+					opts.Parr = 1
+				}
+				br, err = bam.NewReader(fh, opts.Parr)
 				if err != nil {
 					log.Fatalf("cannot create bam reader: %v", err)
 				}
