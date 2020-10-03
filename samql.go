@@ -58,8 +58,8 @@ var keywords = map[string]Keyword{
 	"LENGTH": LENGTH,
 }
 
-// readerSAM is a common interface for SAM/BAM readers and is used as
-// input to Reader.
+// readerSAM is a common interface for SAM/BAM/Indexed BAM readers and is used
+// as input to Reader.
 type readerSAM interface {
 	Header() *sam.Header
 	Read() (*sam.Record, error)
@@ -127,6 +127,17 @@ func (r *Reader) ReadAll() ([]*sam.Record, error) {
 
 		records = append(records, rec)
 	}
+}
+
+// Close closes the underlying BAM/Indexed BAM reader.
+func (r *Reader) Close() error {
+	switch v := r.r.(type) {
+	case *bam.Reader:
+		return v.Close()
+	case *bamx.Reader:
+		return v.Close()
+	}
+	return nil
 }
 
 // allTrue applies all filters to rec and returns true if all return true.
