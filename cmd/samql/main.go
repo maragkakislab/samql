@@ -17,7 +17,7 @@ import (
 )
 
 // VERSION defines the program version.
-const VERSION = "1.1"
+const VERSION = "1.1.rc1"
 
 // Opts is the struct with the options that the program accepts.
 // Opts encapsulates common command line options.
@@ -66,23 +66,17 @@ func main() {
 		}
 		r = samql.NewReader(sr)
 	} else { // BAM or Indexed BAM
-		var br *bam.Reader
+		br, err := bam.NewReader(fh, opts.Parr)
+		if err != nil {
+			log.Fatalf("cannot create bam reader: %v", err)
+		}
 		// Check if BAM is indexed. Look for file with .bai suffix.
 		if len(opts.Input) > 4 {
 			idxf, err := os.Open(opts.Input + ".bai")
 			if err != nil {
 				idxf, err = os.Open(opts.Input[:len(opts.Input)-4] + ".bai")
 			}
-			if err == nil {
-				if rname != "" {
-					// When indexed and a range query is requested, turn off
-					// parallelization -> faster
-					opts.Parr = 1
-				}
-				br, err = bam.NewReader(fh, opts.Parr)
-				if err != nil {
-					log.Fatalf("cannot create bam reader: %v", err)
-				}
+			if err == nil { // if index is found
 				idxbr, err := bamx.New(br, bufio.NewReader(idxf))
 				if err != nil {
 					log.Fatalf("opening file failed: %v", err)
@@ -91,23 +85,14 @@ func main() {
 					_ = idxbr.AddQuery(rname, start, end)
 				}
 				r = samql.NewReader(idxbr)
-				defer func() { // Safely close bam index at the end.
-					if err = idxf.Close(); err != nil {
-						log.Fatalf("cannot close bam index reader: %v", err)
-					}
-				}()
 			}
 		}
 		if r == nil {
-			br, err = bam.NewReader(fh, opts.Parr)
-			if err != nil {
-				log.Fatalf("cannot create bam reader: %v", err)
-			}
 			r = samql.NewReader(br)
 		}
-		defer func() { // Safely close bam reader at the end.
-			if err = br.Close(); err != nil {
-				log.Fatalf("cannot close bam reader: %v", err)
+		defer func() { // Safely close the samql reader at the end.
+			if err = r.Close(); err != nil {
+				log.Fatalf("cannot close samql reader: %v", err)
 			}
 		}()
 	}
@@ -168,20 +153,20 @@ func main() {
 }
 
 func captureRangeQuery(where string) (rname string, start, end int) {
-	m := regexp.MustCompile(`RNAME = "?(.+?)"?\b`).FindStringSubmatch(where)
+	m := regexp.MustCompile(`RNAME\s*=\s*['"]?(.+?)['"]?\b`).FindStringSubmatch(where)
 	if m == nil {
 		return "", 0, 0
 	}
 	rname = m[1]
 
-	m = regexp.MustCompile(`POS (>|>=|=) (\d+)`).FindStringSubmatch(where)
+	m = regexp.MustCompile(`POS\s*(>|>=|=)\s*(\d+)`).FindStringSubmatch(where)
 	if m == nil {
 		start = 0
 	} else {
 		start, _ = strconv.Atoi(m[2])
 	}
 
-	m = regexp.MustCompile(`POS (<|<=) (\d+)`).FindStringSubmatch(where)
+	m = regexp.MustCompile(`POS\s*(<|<=)\s*(\d+)`).FindStringSubmatch(where)
 	if m == nil {
 		end = -1
 	} else {
