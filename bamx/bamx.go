@@ -69,3 +69,8 @@ func (b *Reader) AddQuery(rname string, start, end int) error {
 	b.iter, err = bam.NewIterator(b.Reader, chunks)
 	return err
 }
+
+// Close closes the underlying bam reader.
+func (b *Reader) Close() error {
+	return b.Reader.Close()
+}
