@@ -8,6 +8,7 @@ import (
 
 	"github.com/biogo/hts/bam"
 	"github.com/biogo/hts/sam"
+	"github.com/maragkakislab/samql/bamx"
 	"github.com/maragkakislab/samql/ql"
 )
 
@@ -57,8 +58,8 @@ var keywords = map[string]Keyword{
 	"LENGTH": LENGTH,
 }
 
-// readerSAM is a common interface for SAM/BAM readers and is used as
-// input to Reader.
+// readerSAM is a common interface for SAM/BAM/Indexed BAM readers and is used
+// as input to Reader.
 type readerSAM interface {
 	Header() *sam.Header
 	Read() (*sam.Record, error)
@@ -67,6 +68,7 @@ type readerSAM interface {
 // The github.com/biogo/hts SAM/BAM readers satisfy ReaderInt.
 var _ readerSAM = (*sam.Reader)(nil)
 var _ readerSAM = (*bam.Reader)(nil)
+var _ readerSAM = (*bamx.Reader)(nil)
 
 // FilterFunc is a function that returns true for a SAM record that passes the
 // filter and false otherwise.
@@ -85,6 +87,11 @@ func NewReader(r readerSAM) *Reader {
 		r:       r,
 		Filters: make([]FilterFunc, 0),
 	}
+}
+
+// Header returns the Header of the underlying reader r.
+func (r *Reader) Header() *sam.Header {
+	return r.r.Header()
 }
 
 // Read returns the next *sam.Record from r that passes all filters. Returns
@@ -120,6 +127,17 @@ func (r *Reader) ReadAll() ([]*sam.Record, error) {
 
 		records = append(records, rec)
 	}
+}
+
+// Close closes the underlying BAM/Indexed BAM reader.
+func (r *Reader) Close() error {
+	switch v := r.r.(type) {
+	case *bam.Reader:
+		return v.Close()
+	case *bamx.Reader:
+		return v.Close()
+	}
+	return nil
 }
 
 // allTrue applies all filters to rec and returns true if all return true.

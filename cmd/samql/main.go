@@ -6,15 +6,18 @@ import (
 	"io"
 	"log"
 	"os"
+	"regexp"
+	"strconv"
 
 	arg "github.com/alexflint/go-arg"
 	"github.com/biogo/hts/bam"
 	"github.com/biogo/hts/sam"
 	"github.com/maragkakislab/samql"
+	"github.com/maragkakislab/samql/bamx"
 )
 
 // VERSION defines the program version.
-const VERSION = "1.0.0"
+const VERSION = "1.1.rc1"
 
 // Opts is the struct with the options that the program accepts.
 // Opts encapsulates common command line options.
@@ -36,53 +39,66 @@ func main() {
 	var opts Opts
 	arg.MustParse(&opts)
 
-	// Open file for reading.
-	var fh *os.File
 	var err error
+	rname, start, end := captureRangeQuery(opts.Where)
+
+	// Open input SAM/BAM file descriptor for reading.
+	var fh *os.File
 	if opts.Input == "-" {
 		fh = os.Stdin
 	} else {
-		fh, err = os.Open(opts.Input)
-		if err != nil {
+		if fh, err = os.Open(opts.Input); err != nil {
 			log.Fatalf("cannot open file: %v", err)
 		}
 	}
-	// Close fh at the end.
-	defer func() {
+	defer func() { // Safely close fh at the end.
 		if err = fh.Close(); err != nil {
 			log.Fatalf("cannot close input file: %v", err)
 		}
 	}()
 
+	// Create a samql Reader that reads from a SAM, BAM or indexed BAM file.
 	var r *samql.Reader
-	var header *sam.Header
-	if opts.Sam {
-		// Open SAM/BAM reader.
+	if opts.Sam { // SAM
 		sr, err := sam.NewReader(fh)
 		if err != nil {
-			_ = fh.Close()
 			log.Fatalf("cannot create sam reader: %v", err)
 		}
-		header = sr.Header()
 		r = samql.NewReader(sr)
-	} else {
-		// Open SAM/BAM reader.
+	} else { // BAM or Indexed BAM
 		br, err := bam.NewReader(fh, opts.Parr)
 		if err != nil {
-			_ = fh.Close()
-			log.Fatalf("cannot create sam reader: %v", err)
+			log.Fatalf("cannot create bam reader: %v", err)
 		}
-		header = br.Header()
-		r = samql.NewReader(br)
-		// Close bam reader at the end.
-		defer func() {
-			if err = br.Close(); err != nil {
-				log.Fatalf("cannot close bam reader: %v", err)
+		// Check if BAM is indexed. Look for file with .bai suffix.
+		if len(opts.Input) > 4 {
+			idxf, err := os.Open(opts.Input + ".bai")
+			if err != nil {
+				idxf, err = os.Open(opts.Input[:len(opts.Input)-4] + ".bai")
+			}
+			if err == nil { // if index is found
+				idxbr, err := bamx.New(br, bufio.NewReader(idxf))
+				if err != nil {
+					log.Fatalf("opening file failed: %v", err)
+				}
+				if rname != "" {
+					_ = idxbr.AddQuery(rname, start, end)
+				}
+				r = samql.NewReader(idxbr)
+			}
+		}
+		if r == nil {
+			r = samql.NewReader(br)
+		}
+		defer func() { // Safely close the samql reader at the end.
+			if err = r.Close(); err != nil {
+				log.Fatalf("cannot close samql reader: %v", err)
 			}
 		}()
 	}
 
-	// Create new filtering reader that reads from br.
+	// Create new filter based on provided where clause and add it to
+	// the samql reader.
 	if opts.Where != "" {
 		filter, err := samql.Where(opts.Where)
 		if err != nil {
@@ -91,25 +107,36 @@ func main() {
 		r.Filters = append(r.Filters, filter)
 	}
 
-	var w *sam.Writer
-	if !opts.Count {
-		// Create a writer that writes to STDOUT.
-		stdout := bufio.NewWriter(os.Stdout)
-		defer func() {
-			err := stdout.Flush()
+	// If only counting is requested do just that.
+	if opts.Count {
+		cnt := 0
+		for {
+			_, err := r.Read()
 			if err != nil {
-				log.Fatalf("flashing of stdout cache failed: %v", err)
+				if err == io.EOF {
+					break
+				}
+				log.Fatalf("filtering failed: %v", err)
 			}
-		}()
-
-		w, err = sam.NewWriter(stdout, header, sam.FlagDecimal)
-		if err != nil {
-			log.Fatalf("write of header failed: %v", err)
+			cnt++
 		}
+		fmt.Println(cnt)
+		os.Exit(0)
 	}
 
-	// Loop on the matching records.
-	cnt := 0
+	// Open a SAM writer that prints to STDOUT.
+	stdout := bufio.NewWriter(os.Stdout)
+	defer func() {
+		if err := stdout.Flush(); err != nil {
+			log.Fatalf("flashing of stdout cache failed: %v", err)
+		}
+	}()
+	w, err := sam.NewWriter(stdout, r.Header(), sam.FlagDecimal)
+	if err != nil {
+		log.Fatalf("cannot open SAM writer: %v", err)
+	}
+
+	// Loop on the filtered records and output.
 	for {
 		rec, err := r.Read()
 		if err != nil {
@@ -118,17 +145,33 @@ func main() {
 			}
 			log.Fatalf("filtering failed: %v", err)
 		}
-		cnt++
-
-		if opts.Count {
-			continue
-		}
 
 		if err := w.Write(rec); err != nil {
 			log.Fatalf("write failed: %v for %s", err, rec.Name)
 		}
 	}
-	if opts.Count {
-		fmt.Println(cnt)
+}
+
+func captureRangeQuery(where string) (rname string, start, end int) {
+	m := regexp.MustCompile(`RNAME\s*=\s*['"]?(.+?)['"]?\b`).FindStringSubmatch(where)
+	if m == nil {
+		return "", 0, 0
 	}
+	rname = m[1]
+
+	m = regexp.MustCompile(`POS\s*(>|>=|=)\s*(\d+)`).FindStringSubmatch(where)
+	if m == nil {
+		start = 0
+	} else {
+		start, _ = strconv.Atoi(m[2])
+	}
+
+	m = regexp.MustCompile(`POS\s*(<|<=)\s*(\d+)`).FindStringSubmatch(where)
+	if m == nil {
+		end = -1
+	} else {
+		end, _ = strconv.Atoi(m[2])
+	}
+
+	return rname, start, end
 }
