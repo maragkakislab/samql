@@ -329,6 +329,70 @@ var readTests = []struct {
 			Must(Where("SEQ =~ /^AT/")),
 		},
 	},
+	{
+		Test:   "Test26",
+		Data:   samData,
+		RecCnt: 2,
+		Filters: []FilterFunc{
+			Must(Where("PAIRED = TRUE")),
+		},
+	},
+	{
+		Test:   "Test27",
+		Data:   samData,
+		RecCnt: 2,
+		Filters: []FilterFunc{
+			Must(Where("PAIRED")),
+		},
+	},
+	{
+		Test:   "Test28",
+		Data:   samData,
+		RecCnt: 2,
+		Filters: []FilterFunc{
+			Must(Where("PAIRED AND PAIRED")),
+		},
+	},
+	{
+		Test:   "Test29",
+		Data:   samData,
+		RecCnt: 2,
+		Filters: []FilterFunc{
+			Must(Where("QNAME = r001 AND PAIRED")),
+		},
+	},
+	{
+		Test:   "Test30",
+		Data:   samData,
+		RecCnt: 2,
+		Filters: []FilterFunc{
+			Must(Where("PAIRED AND QNAME = r001")),
+		},
+	},
+	{
+		Test:   "Test31",
+		Data:   samData,
+		RecCnt: 2,
+		Filters: []FilterFunc{
+			Must(Where("TRUE AND QNAME = r001 AND TRUE")),
+		},
+	},
+	{
+		Test:   "Test32",
+		Data:   samData,
+		RecCnt: 6,
+		Filters: []FilterFunc{
+			Must(Where("TRUE")),
+		},
+	},
+	{
+		Test:   "Test33",
+		Data:   samData,
+		RecCnt: 4,
+		Filters: []FilterFunc{
+			Must(Where("PAIRED = FALSE")),
+		},
+	},
 }
 
 // const samData = `@HD	VN:1.5	SO:coordinate
