@@ -369,6 +369,7 @@ var getPlaceholder = map[string]interface{}{
 	"READ2":         placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.Read2 == sam.Read2 }),
 	"SECONDARY":     placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.Secondary == sam.Secondary }),
 	"QCFAIL":        placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.QCFail == sam.QCFail }),
+	"DUPLICATE":     placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.Duplicate == sam.Duplicate }),
 	"SUPPLEMENTARY": placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.Supplementary == sam.Supplementary }),
 }
 
