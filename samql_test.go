@@ -26,8 +26,10 @@ r001	99	chr1	7	30	8M2I4M1D3M	=	37	39	TTAGATAAAGGATACTG	*
 r002	0	chr1	9	30	3S6M1P1I4M	*	0	0	AAAAGATAAGGATA	*
 r003	0	chr1	16	30	6M14N5M	*	0	0	ATAGCTTCAGC	*
 r001	147	chr1	37	30	9M	=	7	-39	CAGCGGCAT	*	NM:i:1	MD:Z:TAT	de:f:0.0903
-r004	0	chr2	40	30	6M14N5M	*	0	0	ATAGCTTCAGC	*
+r004	3840	chr2	40	30	6M14N5M	*	0	0	ATAGCTTCAGC	*
 r005	0	1	40	29	6M14N5M	*	0	0	ATAGCTTCAGC	*	NM:i:60000	MD:A:T
+r006	77	*	0	0	*	*	0	0	CAGCGTGCATGCTACGATAGCAT	*
+r006	141	*	0	0	*	*	0	0	CGATCGATCGAGCTAGCTAGCT	*
 `
 
 var readTests = []struct {
@@ -39,7 +41,7 @@ var readTests = []struct {
 	{
 		Test:   "Test1",
 		Data:   samData,
-		RecCnt: 6,
+		RecCnt: 8,
 	},
 	{
 		Test:   "Test2",
@@ -76,7 +78,7 @@ var readTests = []struct {
 	{
 		Test:   "Test6",
 		Data:   samData,
-		RecCnt: 5,
+		RecCnt: 7,
 		Filters: []FilterFunc{
 			Must(Where("RNAME!=\"chr2\"")),
 		},
@@ -92,7 +94,7 @@ var readTests = []struct {
 	{
 		Test:   "Test8",
 		Data:   samData,
-		RecCnt: 2,
+		RecCnt: 4,
 		Filters: []FilterFunc{
 			Must(Where("RNAME!~/^chr1/")),
 		},
@@ -100,7 +102,7 @@ var readTests = []struct {
 	{
 		Test:   "Test9",
 		Data:   samData,
-		RecCnt: 2,
+		RecCnt: 4,
 		Filters: []FilterFunc{
 			Must(Where("POS < 15")),
 		},
@@ -108,7 +110,7 @@ var readTests = []struct {
 	{
 		Test:   "Test10",
 		Data:   samData,
-		RecCnt: 3,
+		RecCnt: 5,
 		Filters: []FilterFunc{
 			Must(Where("POS <= 15")),
 		},
@@ -164,7 +166,7 @@ var readTests = []struct {
 	{
 		Test:   "Test17",
 		Data:   samData,
-		RecCnt: 2,
+		RecCnt: 4,
 		Filters: []FilterFunc{
 			Must(Where("FLAG & 1 = 1")),
 		},
@@ -188,7 +190,7 @@ var readTests = []struct {
 	{
 		Test:   "Test18b",
 		Data:   samData,
-		RecCnt: 2,
+		RecCnt: 4,
 		Filters: []FilterFunc{
 			Must(Where("RNAME = RNEXT")),
 		},
@@ -212,7 +214,7 @@ var readTests = []struct {
 	{
 		Test:   "Test19-Tag3",
 		Data:   samData,
-		RecCnt: 6,
+		RecCnt: 8,
 		Filters: []FilterFunc{
 			Must(Where("NM:i = NM:i")),
 		},
@@ -220,7 +222,7 @@ var readTests = []struct {
 	{
 		Test:   "Test19-Tag4",
 		Data:   samData,
-		RecCnt: 4,
+		RecCnt: 6,
 		Filters: []FilterFunc{
 			Must(Where("NM:i = de:f")),
 		},
@@ -244,7 +246,7 @@ var readTests = []struct {
 	{
 		Test:   "Test19-Tag8",
 		Data:   samData,
-		RecCnt: 6,
+		RecCnt: 8,
 		Filters: []FilterFunc{
 			Must(Where("de:f <= de:f")),
 		},
@@ -252,7 +254,7 @@ var readTests = []struct {
 	{
 		Test:   "Test19-Tag9",
 		Data:   samData,
-		RecCnt: 6,
+		RecCnt: 8,
 		Filters: []FilterFunc{
 			Must(Where("de:f != -60000")),
 		},
@@ -260,7 +262,7 @@ var readTests = []struct {
 	{
 		Test:   "Test19-Tag10",
 		Data:   samData,
-		RecCnt: 4,
+		RecCnt: 6,
 		Filters: []FilterFunc{
 			Must(Where("de:f >= NM:i")),
 		},
@@ -284,7 +286,7 @@ var readTests = []struct {
 	{
 		Test:   "Test20",
 		Data:   samData,
-		RecCnt: 1,
+		RecCnt: 3,
 		Filters: []FilterFunc{
 			Must(Where("MAPQ < 30")),
 		},
@@ -300,7 +302,7 @@ var readTests = []struct {
 	{
 		Test:   "Test22",
 		Data:   samData,
-		RecCnt: 5,
+		RecCnt: 7,
 		Filters: []FilterFunc{
 			Must(Where("TLEN != 39")),
 		},
@@ -308,7 +310,7 @@ var readTests = []struct {
 	{
 		Test:   "Test23",
 		Data:   samData,
-		RecCnt: 1,
+		RecCnt: 3,
 		Filters: []FilterFunc{
 			Must(Where("LENGTH <= 9")),
 		},
@@ -327,6 +329,102 @@ var readTests = []struct {
 		RecCnt: 3,
 		Filters: []FilterFunc{
 			Must(Where("SEQ =~ /^AT/")),
+		},
+	},
+	{
+		Test:   "Test26",
+		Data:   samData,
+		RecCnt: 4,
+		Filters: []FilterFunc{
+			Must(Where("PAIRED = TRUE")),
+		},
+	},
+	{
+		Test:   "Test27a",
+		Data:   samData,
+		RecCnt: 4,
+		Filters: []FilterFunc{
+			Must(Where("PAIRED")),
+		},
+	},
+	{
+		Test:   "Test27b",
+		Data:   samData,
+		RecCnt: 1,
+		Filters: []FilterFunc{
+			Must(Where("PAIRED AND PROPERPAIR AND REVERSE AND READ2")),
+		},
+	},
+	{
+		Test:   "Test27c",
+		Data:   samData,
+		RecCnt: 1,
+		Filters: []FilterFunc{
+			Must(Where("PAIRED AND MATEREVERSE AND READ1")),
+		},
+	},
+	{
+		Test:   "Test27d",
+		Data:   samData,
+		RecCnt: 1,
+		Filters: []FilterFunc{
+			Must(Where("SECONDARY AND QCFAIL AND DUPLICATE AND SUPPLEMENTARY")),
+		},
+	},
+	{
+		Test:   "Test27e",
+		Data:   samData,
+		RecCnt: 2,
+		Filters: []FilterFunc{
+			Must(Where("PAIRED AND UNMAPPED AND MATEUNMAPPED")),
+		},
+	},
+	{
+		Test:   "Test28",
+		Data:   samData,
+		RecCnt: 4,
+		Filters: []FilterFunc{
+			Must(Where("PAIRED AND PAIRED")),
+		},
+	},
+	{
+		Test:   "Test29",
+		Data:   samData,
+		RecCnt: 2,
+		Filters: []FilterFunc{
+			Must(Where("QNAME = r001 AND PAIRED")),
+		},
+	},
+	{
+		Test:   "Test30",
+		Data:   samData,
+		RecCnt: 2,
+		Filters: []FilterFunc{
+			Must(Where("PAIRED AND QNAME = r001")),
+		},
+	},
+	{
+		Test:   "Test31",
+		Data:   samData,
+		RecCnt: 2,
+		Filters: []FilterFunc{
+			Must(Where("TRUE AND QNAME = r001 AND TRUE")),
+		},
+	},
+	{
+		Test:   "Test32",
+		Data:   samData,
+		RecCnt: 8,
+		Filters: []FilterFunc{
+			Must(Where("TRUE")),
+		},
+	},
+	{
+		Test:   "Test33",
+		Data:   samData,
+		RecCnt: 4,
+		Filters: []FilterFunc{
+			Must(Where("PAIRED = FALSE")),
 		},
 	},
 }

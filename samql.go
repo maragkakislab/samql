@@ -41,22 +41,31 @@ const (
 	QUAL
 	// LENGTH corresponds to the alignment length.
 	LENGTH
+	// PAIRED corresponds to SAM flag 0x1.
+	PAIRED
+	// PROPERPAIR corresponds to SAM flag 0x2.
+	PROPERPAIR
+	// UNMAPPED corresponds to SAM flag 0x4.
+	UNMAPPED
+	// MATEUNMAPPED corresponds to SAM flag 0x8.
+	MATEUNMAPPED
+	// REVERSE corresponds to SAM flag 0x10.
+	REVERSE
+	// MATEREVERSE corresponds to SAM flag 0x20.
+	MATEREVERSE
+	// READ1 corresponds to SAM flag 0x40.
+	READ1
+	// READ2 corresponds to SAM flag 0x80.
+	READ2
+	// SECONDARY corresponds to SAM flag 0x100.
+	SECONDARY
+	// QCFAIL corresponds to SAM flag 0x200.
+	QCFAIL
+	// DUPLICATE corresponds to SAM flag 0x400.
+	DUPLICATE
+	// SUPPLEMENTARY corresponds to SAM flag 0x800.
+	SUPPLEMENTARY
 )
-
-var keywords = map[string]Keyword{
-	"QNAME":  QNAME,
-	"FLAG":   FLAG,
-	"RNAME":  RNAME,
-	"POS":    POS,
-	"MAPQ":   MAPQ,
-	"CIGAR":  CIGAR,
-	"RNEXT":  RNEXT,
-	"PNEXT":  PNEXT,
-	"TLEN":   TLEN,
-	"SEQ":    SEQ,
-	"QUAL":   QUAL,
-	"LENGTH": LENGTH,
-}
 
 // readerSAM is a common interface for SAM/BAM/Indexed BAM readers and is used
 // as input to Reader.
@@ -150,26 +159,10 @@ func allTrue(rec *sam.Record, fs []FilterFunc) bool {
 	return true
 }
 
-// Logical combines two FilterFunc with the operator op and returns a new
-// FilterFunc.
-func Logical(f, ff FilterFunc, op ql.Token) FilterFunc {
-	switch op {
-	case ql.AND:
-		return func(rec *sam.Record) bool {
-			return f(rec) && ff(rec)
-		}
-	case ql.OR:
-		return func(rec *sam.Record) bool {
-			return f(rec) || ff(rec)
-		}
-	}
-	panic(fmt.Sprintf("operator %v not supported for filter combination", op))
-}
-
 // Qname returns a FilterFunc that compares the given value to the sam
 // record query name.
 func Qname(val string, op ql.Token) FilterFunc {
-	f := getPlaceholderStr[QNAME]
+	f := getPlaceholder["QNAME"].(placeholderStr)
 	return func(rec *sam.Record) bool {
 		return CompStr(f(rec), val, op)
 	}
@@ -178,7 +171,7 @@ func Qname(val string, op ql.Token) FilterFunc {
 // Rname returns a FilterFunc that compares the given value to the sam
 // record reference name.
 func Rname(val string, op ql.Token) FilterFunc {
-	f := getPlaceholderStr[RNAME]
+	f := getPlaceholder["RNAME"].(placeholderStr)
 	return func(rec *sam.Record) bool {
 		return CompStr(f(rec), val, op)
 	}
@@ -187,7 +180,7 @@ func Rname(val string, op ql.Token) FilterFunc {
 // Pos returns a FilterFunc that compares the given value to the sam
 // record alignment position.
 func Pos(val int, op ql.Token) FilterFunc {
-	f := getPlaceholderInt[POS]
+	f := getPlaceholder["POS"].(placeholderInt)
 	return func(rec *sam.Record) bool {
 		return CompInt(f(rec), val, op)
 	}
@@ -196,7 +189,7 @@ func Pos(val int, op ql.Token) FilterFunc {
 // Length returns a FilterFunc that compares the given value to the sam
 // record alignment length.
 func Length(val int, op ql.Token) FilterFunc {
-	f := getPlaceholderInt[LENGTH]
+	f := getPlaceholder["LENGTH"].(placeholderInt)
 	return func(rec *sam.Record) bool {
 		return CompInt(f(rec), val, op)
 	}
@@ -230,12 +223,16 @@ func Where(query string) (FilterFunc, error) {
 		panic("samql: filter creation failed for " + query)
 	}
 
-	fil, ok := v.nodes[0].(FilterFunc)
-	if !ok {
+	switch fil := v.nodes[0].(type) {
+	case FilterFunc:
+		return fil, nil
+	case placeholderBool:
+		return FilterFunc(fil), nil
+	case bool:
+		return func(rec *sam.Record) bool { return fil }, nil
+	default:
 		panic("samql: filterFunc creation failed for " + query)
 	}
-
-	return fil, nil
 }
 
 type evalVisitor struct {
@@ -277,31 +274,11 @@ func (v *evalVisitor) Visit(node ql.Node) ql.Visitor {
 
 		// When this point is reached 3 nodes need to resolved (i.e. operand,
 		// lhs, rhs). The lhs and rhs have already been resolved to their
-		// final values. The operand is either a comparison (handled in case 1
-		// or logical (handled in case 2).
+		// final values.
 		switch n.Op {
-		case ql.EQ, ql.NEQ, ql.LT, ql.LTE, ql.GT, ql.GTE, ql.EQREGEX,
-			ql.NEQREGEX:
-			lhs, rhs := v.pop2Nodes()
-			v.nodes = append(v.nodes, eval(lhs, rhs, n.Op))
+		case ql.EQ, ql.NEQ, ql.LT, ql.LTE, ql.GT, ql.GTE, ql.AND,
+			ql.OR, ql.BITWISEAND, ql.EQREGEX, ql.NEQREGEX:
 
-		case ql.AND, ql.OR:
-			lhs, rhs := v.pop2Nodes()
-			l, ok := lhs.(FilterFunc)
-			if !ok {
-				panic("AND and OR can only combine two FilterFuncs")
-			}
-			r, ok := rhs.(FilterFunc)
-			if !ok {
-				panic("AND and OR can only combine two FilterFuncs")
-			}
-			if n.Op == ql.AND {
-				v.nodes = append(v.nodes, eval(l, r, n.Op))
-			} else {
-				v.nodes = append(v.nodes, eval(l, r, n.Op))
-			}
-
-		case ql.BITWISEAND:
 			lhs, rhs := v.pop2Nodes()
 			v.nodes = append(v.nodes, eval(lhs, rhs, n.Op))
 
@@ -312,7 +289,7 @@ func (v *evalVisitor) Visit(node ql.Node) ql.Visitor {
 		return nil
 
 	case *ql.VarRef:
-		v.nodes = append(v.nodes, n.Val)
+		v.nodes = append(v.nodes, evalVarRef(n.Val))
 		return nil
 
 	case *ql.ParenExpr:
@@ -342,8 +319,11 @@ func (v *evalVisitor) Visit(node ql.Node) ql.Visitor {
 		v.nodes = append(v.nodes, n.Val)
 		return nil
 
+	case *ql.BooleanLiteral:
+		v.nodes = append(v.nodes, n.Val)
+		return nil
+
 	default:
-		//v.err = fmt.Errorf("unsupported expression %T", n)
 		return v
 	}
 }
@@ -357,26 +337,44 @@ type placeholderFloat func(*sam.Record) float32
 // placeholderStr is a function that returns a string given a sam.Record.
 type placeholderStr func(*sam.Record) string
 
-// getPlaceholderStr associates a SamField with a placeholderStr.
-var getPlaceholderStr = map[Keyword]placeholderStr{
-	QNAME: func(rec *sam.Record) string { return rec.Name },
-	RNAME: func(rec *sam.Record) string { return rec.Ref.Name() },
-	CIGAR: func(rec *sam.Record) string { return rec.Cigar.String() },
-	RNEXT: func(rec *sam.Record) string { return rec.MateRef.Name() },
-	SEQ:   func(rec *sam.Record) string { return string(rec.Seq.Expand()) },
-	QUAL:  func(rec *sam.Record) string { return string(rec.Qual) },
+// placeholderBool is a function that returns a boolean given a sam.Record.
+type placeholderBool func(*sam.Record) bool
+
+// getPlaceholderr associates a SamField with a placeholder.
+var getPlaceholder = map[string]interface{}{
+	// getPlaceholderStr associates a SamField with a placeholderStr.
+	"QNAME": placeholderStr(func(r *sam.Record) string { return r.Name }),
+	"RNAME": placeholderStr(func(r *sam.Record) string { return r.Ref.Name() }),
+	"CIGAR": placeholderStr(func(r *sam.Record) string { return r.Cigar.String() }),
+	"RNEXT": placeholderStr(func(r *sam.Record) string { return r.MateRef.Name() }),
+	"SEQ":   placeholderStr(func(r *sam.Record) string { return string(r.Seq.Expand()) }),
+	"QUAL":  placeholderStr(func(r *sam.Record) string { return string(r.Qual) }),
+
+	// getPlaceholderInt associates a SamField with a placeholderInt.
+	"FLAG":   placeholderInt(func(r *sam.Record) int { return int(r.Flags) }),
+	"POS":    placeholderInt(func(r *sam.Record) int { return r.Pos }),
+	"MAPQ":   placeholderInt(func(r *sam.Record) int { return int(r.MapQ) }),
+	"PNEXT":  placeholderInt(func(r *sam.Record) int { return r.MatePos }),
+	"TLEN":   placeholderInt(func(r *sam.Record) int { return r.TempLen }),
+	"LENGTH": placeholderInt(func(r *sam.Record) int { return r.Len() }),
+
+	// getPlaceholderBool associates a sam flag Keyword with a placeholderBool.
+	"PAIRED":        placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.Paired == sam.Paired }),
+	"PROPERPAIR":    placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.ProperPair == sam.ProperPair }),
+	"UNMAPPED":      placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.Unmapped == sam.Unmapped }),
+	"MATEUNMAPPED":  placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.MateUnmapped == sam.MateUnmapped }),
+	"REVERSE":       placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.Reverse == sam.Reverse }),
+	"MATEREVERSE":   placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.MateReverse == sam.MateReverse }),
+	"READ1":         placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.Read1 == sam.Read1 }),
+	"READ2":         placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.Read2 == sam.Read2 }),
+	"SECONDARY":     placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.Secondary == sam.Secondary }),
+	"QCFAIL":        placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.QCFail == sam.QCFail }),
+	"DUPLICATE":     placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.Duplicate == sam.Duplicate }),
+	"SUPPLEMENTARY": placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.Supplementary == sam.Supplementary }),
 }
 
-// getPlaceholderInt associates a SamField with a placeholderInt.
-var getPlaceholderInt = map[Keyword]placeholderInt{
-	FLAG:   func(rec *sam.Record) int { return int(rec.Flags) },
-	POS:    func(rec *sam.Record) int { return rec.Pos },
-	MAPQ:   func(rec *sam.Record) int { return int(rec.MapQ) },
-	PNEXT:  func(rec *sam.Record) int { return rec.MatePos },
-	TLEN:   func(rec *sam.Record) int { return rec.TempLen },
-	LENGTH: func(rec *sam.Record) int { return rec.Len() },
-}
-
+// getPlaceholderTag returns a placeholder corresponding to the requested sam
+// tag.
 func getPlaceholderTag(aval string) interface{} {
 	switch typ := aval[3]; typ {
 	case 'i':
@@ -402,30 +400,24 @@ func getPlaceholderTag(aval string) interface{} {
 	case 'Z':
 		return placeholderStr(func(rec *sam.Record) string {
 			if aux, ok := rec.Tag([]byte(aval[0:2])); ok {
-				switch v := aux.Value().(type) {
-				case string:
-					return v
-				}
+				v, _ := aux.Value().(string)
+				return v
 			}
 			return ""
 		})
 	case 'A':
 		return placeholderStr(func(rec *sam.Record) string {
 			if aux, ok := rec.Tag([]byte(aval[0:2])); ok {
-				switch v := aux.Value().(type) {
-				case byte:
-					return string(v)
-				}
+				v, _ := aux.Value().(byte)
+				return string(v)
 			}
 			return ""
 		})
 	case 'f':
 		return placeholderFloat(func(rec *sam.Record) float32 {
 			if aux, ok := rec.Tag([]byte(aval[0:2])); ok {
-				switch v := aux.Value().(type) {
-				case float32:
-					return float32(v)
-				}
+				v, _ := aux.Value().(float32)
+				return v
 			}
 			return 0.0
 		})
@@ -434,49 +426,40 @@ func getPlaceholderTag(aval string) interface{} {
 	}
 }
 
+var validTag = regexp.MustCompile(`^[A-Za-z][A-Za-z]:[AifZHB]`)
+
+// evalVarRef returns the corresponding placeholder, if VarRef is a keyword,
+// or VarRef itself.
+func evalVarRef(varRefVal string) interface{} {
+	if fn, ok := getPlaceholder[varRefVal]; ok {
+		return fn
+	} else if validTag.MatchString(varRefVal) {
+		return getPlaceholderTag(varRefVal)
+	}
+
+	return varRefVal
+}
+
 // eval evaluates the inferred values of a and b using the operator op. eval
 // returns a concrete value, a placeholder or a FilterFunc.
 func eval(a, b interface{}, op ql.Token) interface{} {
-	var validTag = regexp.MustCompile(`^[A-Za-z][A-Za-z]:[AifZHB]`)
-	switch aval := a.(type) {
-	case string:
-		if sf, ok := keywords[aval]; ok {
-			if fn, ok := getPlaceholderInt[sf]; ok {
-				a = fn
-			} else if fn, ok := getPlaceholderStr[sf]; ok {
-				a = fn
-			}
-		} else if validTag.MatchString(aval) {
-			a = getPlaceholderTag(aval)
-		}
-	}
-
-	switch bval := b.(type) {
-	case string:
-		if sf, ok := keywords[bval]; ok {
-			if fn, ok := getPlaceholderInt[sf]; ok {
-				b = fn
-			} else if fn, ok := getPlaceholderStr[sf]; ok {
-				b = fn
-			}
-		} else if validTag.MatchString(bval) {
-			b = getPlaceholderTag(bval)
-		}
-	}
-
 	switch a := a.(type) {
 	case FilterFunc:
 		switch b := b.(type) {
 		case FilterFunc:
-			return Logical(a, b, op)
+			return FilterFunc(func(rec *sam.Record) bool {
+				return CompBool(a(rec), b(rec), op)
+			})
+		case placeholderBool:
+			return FilterFunc(func(rec *sam.Record) bool {
+				return CompBool(a(rec), b(rec), op)
+			})
+		case bool:
+			return FilterFunc(func(rec *sam.Record) bool {
+				return CompBool(a(rec), b, op)
+			})
 		default:
-			panic("filters can only be evaluated to themselves")
-		}
-
-	case string:
-		switch b := b.(type) {
-		case string:
-			return a == b
+			panic("boolean filter can only be compared to other booleans")
 		}
 
 	case placeholderInt:
@@ -509,7 +492,7 @@ func eval(a, b interface{}, op ql.Token) interface{} {
 				return CompInt(a(rec), int(b), op)
 			})
 		default:
-			panic("integer placeholder can only be evaluated to int or another integer placeholder")
+			panic("integer placeholder can only be compared to other integers or floats")
 		}
 
 	case placeholderFloat:
@@ -531,7 +514,7 @@ func eval(a, b interface{}, op ql.Token) interface{} {
 				return CompFloat(a(rec), b(rec), op)
 			})
 		default:
-			panic("float placeholder can only be evaluated to float or another float placeholder")
+			panic("float placeholder can only be compared to other floats or integers")
 		}
 
 	case placeholderStr:
@@ -553,7 +536,51 @@ func eval(a, b interface{}, op ql.Token) interface{} {
 				return CompStr(a(rec), strconv.FormatInt(b, 10), op)
 			})
 		default:
-			panic("string placeholder can only be evaluated to string or another string placeholder")
+			panic("string placeholder can only be compared to other strings")
+		}
+
+	case placeholderBool:
+		switch b := b.(type) {
+		case bool:
+			return FilterFunc(func(rec *sam.Record) bool {
+				return CompBool(a(rec), b, op)
+			})
+		case placeholderBool:
+			return FilterFunc(func(rec *sam.Record) bool {
+				return CompBool(a(rec), b(rec), op)
+			})
+		case FilterFunc:
+			return FilterFunc(func(rec *sam.Record) bool {
+				return CompBool(a(rec), b(rec), op)
+			})
+		default:
+			panic("boolean placeholder can only be compared to other booleans")
+		}
+
+	case string:
+		switch b := b.(type) {
+		case string:
+			return a == b
+		default:
+			panic("string can only be compared to other strings")
+		}
+
+	case bool:
+		switch b := b.(type) {
+		case bool:
+			return FilterFunc(func(rec *sam.Record) bool {
+				return CompBool(a, b, op)
+			})
+		case placeholderBool:
+			return FilterFunc(func(rec *sam.Record) bool {
+				return CompBool(a, b(rec), op)
+			})
+		case FilterFunc:
+			return FilterFunc(func(rec *sam.Record) bool {
+				return CompBool(a, b(rec), op)
+			})
+		default:
+			panic("boolean can only be compared to other booleans")
 		}
 	}
 
@@ -627,6 +654,22 @@ func CompStr(a, b string, op ql.Token) bool {
 			panic(err) //TODO error handling
 		}
 		return !re.MatchString(a)
+	default:
+		return false
+	}
+}
+
+// CompBool compares two booleans using the provided operator op.
+func CompBool(a, b bool, op ql.Token) bool {
+	switch op {
+	case ql.EQ:
+		return a == b
+	case ql.NEQ:
+		return a != b
+	case ql.AND:
+		return a && b
+	case ql.OR:
+		return a || b
 	default:
 		return false
 	}
