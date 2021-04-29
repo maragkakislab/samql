@@ -17,7 +17,7 @@ import (
 )
 
 // VERSION defines the program version.
-const VERSION = "1.3"
+const VERSION = "1.4"
 
 // Opts is the struct with the options that the program accepts.
 // Opts encapsulates common command line options.
@@ -27,6 +27,8 @@ type Opts struct {
 	Count bool   `arg:"-c" help:"print only the count of matching records"`
 	Sam   bool   `arg:"-S" help:"interpret input as SAM, otherwise BAM"`
 	Parr  int    `arg:"-p" help:"Number of cores for parallelization"`
+	OBam  bool   `arg:"-b" help:"Output BAM"`
+	OParr int    `arg:"-t" help:"Number of cores for output compression parallelization"`
 }
 
 // Version returns the program name and version.
@@ -131,9 +133,18 @@ func main() {
 			log.Fatalf("flashing of stdout cache failed: %v", err)
 		}
 	}()
-	w, err := sam.NewWriter(stdout, r.Header(), sam.FlagDecimal)
-	if err != nil {
-		log.Fatalf("cannot open SAM writer: %v", err)
+
+	var w writer
+	if opts.OBam {
+		w, err = bam.NewWriter(stdout, r.Header(), opts.OParr)
+		if err != nil {
+			log.Fatalf("cannot open BAM writer: %v", err)
+		}
+	} else {
+		w, err = sam.NewWriter(stdout, r.Header(), sam.FlagDecimal)
+		if err != nil {
+			log.Fatalf("cannot open SAM writer: %v", err)
+		}
 	}
 
 	// Loop on the filtered records and output.
@@ -149,6 +160,11 @@ func main() {
 		if err := w.Write(rec); err != nil {
 			log.Fatalf("write failed: %v for %s", err, rec.Name)
 		}
+	}
+
+	// Close w if it is a bam writer
+	if temp, ok := w.(*bam.Writer); ok {
+		temp.Close()
 	}
 }
 
@@ -174,4 +190,9 @@ func captureRangeQuery(where string) (rname string, start, end int) {
 	}
 
 	return rname, start, end
+}
+
+// writer defines a common interface for a bam and sam writer.
+type writer interface {
+	Write(*sam.Record) error
 }
