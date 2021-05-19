@@ -20,7 +20,7 @@ functionality.
 
 ```bash
 Filters a SAM/BAM file using the provided SQL clause
-Usage: samql [--where WHERE] [--count] [--sam] [--parr PARR] INPUT
+Usage: samql [--where WHERE] [--count] [--sam] [--parr PARR] [--obam] [--oparr OPARR] INPUT [INPUT ...]
 
 Positional arguments:
   INPUT                  file (- for STDIN)
@@ -30,6 +30,9 @@ Options:
   --count, -c            print only the count of matching records
   --sam, -S              interpret input as SAM, otherwise BAM
   --parr PARR, -p PARR   Number of cores for parallelization
+  --obam, -b             Output BAM
+  --oparr OPARR, -t OPARR
+                         Number of cores for output compression parallelization
   --help, -h             display this help and exit
   --version              display version and exit
 ```
@@ -43,6 +46,9 @@ samql --where "QNAME = read1" test.bam   # Query name is "read1"
 samql --where "POS > 100" test.bam       # Position (0-based) greater than 100
 samql --where "REVERSE" test.bam         # Negative strand
 samql --where "FLAG & 16 = 16" test.bam  # Ditto using flag arithmetics
+
+# More than one files
+samql --where "REVERSE" test1.bam test2.bam # Reads are returned in the order of the files
 
 # Regex
 samql --where "CIGAR =~ /^15M/" test.bam # Alignment starts with 15 matches
