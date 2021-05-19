@@ -17,18 +17,18 @@ import (
 )
 
 // VERSION defines the program version.
-const VERSION = "1.4"
+const VERSION = "1.5"
 
 // Opts is the struct with the options that the program accepts.
 // Opts encapsulates common command line options.
 type Opts struct {
-	Input string `arg:"positional,required" help:"file (- for STDIN)"`
-	Where string `arg:"" help:"SQL clause to match records"`
-	Count bool   `arg:"-c" help:"print only the count of matching records"`
-	Sam   bool   `arg:"-S" help:"interpret input as SAM, otherwise BAM"`
-	Parr  int    `arg:"-p" help:"Number of cores for parallelization"`
-	OBam  bool   `arg:"-b" help:"Output BAM"`
-	OParr int    `arg:"-t" help:"Number of cores for output compression parallelization"`
+	Input []string `arg:"positional,required" help:"file (- for STDIN)"`
+	Where string   `arg:"" help:"SQL clause to match records"`
+	Count bool     `arg:"-c" help:"print only the count of matching records"`
+	Sam   bool     `arg:"-S" help:"interpret input as SAM, otherwise BAM"`
+	Parr  int      `arg:"-p" help:"Number of cores for parallelization"`
+	OBam  bool     `arg:"-b" help:"Output BAM"`
+	OParr int      `arg:"-t" help:"Number of cores for output compression parallelization"`
 }
 
 // Version returns the program name and version.
@@ -37,96 +37,71 @@ func (Opts) Version() string { return "samql " + VERSION }
 // Description returns an extended description of the program.
 func (Opts) Description() string { return "Filters a SAM/BAM file using the SQL clause provided" }
 
+// Range describes a range query.
+type Range struct {
+	Rname      string
+	Start, End int
+}
+
 func main() {
 	var opts Opts
 	arg.MustParse(&opts)
 
-	var err error
-	rname, start, end := captureRangeQuery(opts.Where)
+	// Capture potential range queries early to inform readers creation.
+	rquery := captureRangeQuery(opts.Where)
 
-	// Open input SAM/BAM file descriptor for reading.
-	var fh *os.File
-	if opts.Input == "-" {
-		fh = os.Stdin
-	} else {
-		if fh, err = os.Open(opts.Input); err != nil {
-			log.Fatalf("cannot open file: %v", err)
-		}
-	}
-	defer func() { // Safely close fh at the end.
-		if err = fh.Close(); err != nil {
-			log.Fatalf("cannot close input file: %v", err)
+	// Create samql readers that read from the inputs.
+	readers := getSamqlReaders(opts.Input, opts.Sam, opts.Parr, rquery)
+	defer func() { // Close all samql readers at the end.
+		for _, r := range readers {
+			if err := r.Close(); err != nil {
+				log.Fatalf("cannot close samql reader: %v", err)
+			}
 		}
 	}()
 
-	// Create a samql Reader that reads from a SAM, BAM or indexed BAM file.
-	var r *samql.Reader
-	if opts.Sam { // SAM
-		sr, err := sam.NewReader(fh)
-		if err != nil {
-			log.Fatalf("cannot create sam reader: %v", err)
-		}
-		r = samql.NewReader(sr)
-	} else { // BAM or Indexed BAM
-		br, err := bam.NewReader(fh, opts.Parr)
-		if err != nil {
-			log.Fatalf("cannot create bam reader: %v", err)
-		}
-		// Check if BAM is indexed. Look for file with .bai suffix.
-		if len(opts.Input) > 4 {
-			idxf, err := os.Open(opts.Input + ".bai")
-			if err != nil {
-				idxf, err = os.Open(opts.Input[:len(opts.Input)-4] + ".bai")
-			}
-			if err == nil { // if index is found
-				idxbr, err := bamx.New(br, bufio.NewReader(idxf))
-				if err != nil {
-					log.Fatalf("opening file failed: %v", err)
-				}
-				if rname != "" {
-					_ = idxbr.AddQuery(rname, start, end)
-				}
-				r = samql.NewReader(idxbr)
-			}
-		}
-		if r == nil {
-			r = samql.NewReader(br)
-		}
-		defer func() { // Safely close the samql reader at the end.
-			if err = r.Close(); err != nil {
-				log.Fatalf("cannot close samql reader: %v", err)
-			}
-		}()
-	}
-
-	// Create new filter based on provided where clause and add it to
-	// the samql reader.
+	// Create new filter based on provided where clause and add it to the
+	// samql readers.
 	if opts.Where != "" {
 		filter, err := samql.Where(opts.Where)
 		if err != nil {
 			log.Fatalf("filter creation from where clause failed: %v", err)
 		}
-		r.Filters = append(r.Filters, filter)
+		for _, r := range readers {
+			r.AppendFilter(filter)
+		}
 	}
 
 	// If only counting is requested do just that.
 	if opts.Count {
 		cnt := 0
-		for {
-			_, err := r.Read()
-			if err != nil {
-				if err == io.EOF {
-					break
+		for _, r := range readers {
+			for {
+				_, err := r.Read()
+				if err != nil {
+					if err == io.EOF {
+						break
+					}
+					log.Fatalf("filtering failed: %v", err)
 				}
-				log.Fatalf("filtering failed: %v", err)
+				cnt++
 			}
-			cnt++
 		}
 		fmt.Println(cnt)
 		os.Exit(0)
 	}
 
-	// Open a SAM writer that prints to STDOUT.
+	// Create new header by merging all headers.
+	headers := make([]*sam.Header, len(readers))
+	for i, r := range readers {
+		headers[i] = r.Header()
+	}
+	mergedHeader, _, err := sam.MergeHeaders(headers)
+	if err != nil {
+		log.Fatalf("cannot merge headers: %v", err)
+	}
+
+	// Open a writer that prints to STDOUT.
 	stdout := bufio.NewWriter(os.Stdout)
 	defer func() {
 		if err := stdout.Flush(); err != nil {
@@ -134,62 +109,121 @@ func main() {
 		}
 	}()
 
+	// Open a new SAM/BAM writer.
 	var w writer
 	if opts.OBam {
-		w, err = bam.NewWriter(stdout, r.Header(), opts.OParr)
-		if err != nil {
-			log.Fatalf("cannot open BAM writer: %v", err)
-		}
+		w, err = bam.NewWriter(stdout, mergedHeader, opts.OParr)
 	} else {
-		w, err = sam.NewWriter(stdout, r.Header(), sam.FlagDecimal)
-		if err != nil {
-			log.Fatalf("cannot open SAM writer: %v", err)
-		}
+		w, err = sam.NewWriter(stdout, mergedHeader, sam.FlagDecimal)
+	}
+	if err != nil {
+		log.Fatalf("cannot open SAM/BAM writer: %v", err)
 	}
 
 	// Loop on the filtered records and output.
-	for {
-		rec, err := r.Read()
-		if err != nil {
-			if err == io.EOF {
-				break
+	for _, r := range readers {
+		for {
+			rec, err := r.Read()
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				log.Fatalf("filtering failed: %v", err)
 			}
-			log.Fatalf("filtering failed: %v", err)
+
+			if err := w.Write(rec); err != nil {
+				log.Fatalf("write failed: %v for %s", err, rec.Name)
+			}
 		}
 
-		if err := w.Write(rec); err != nil {
-			log.Fatalf("write failed: %v for %s", err, rec.Name)
-		}
 	}
-
 	// Close w if it is a bam writer
 	if temp, ok := w.(*bam.Writer); ok {
 		temp.Close()
 	}
 }
 
-func captureRangeQuery(where string) (rname string, start, end int) {
+func captureRangeQuery(where string) *Range {
 	m := regexp.MustCompile(`RNAME\s*=\s*['"]?(.+?)['"]?\b`).FindStringSubmatch(where)
-	if m == nil {
-		return "", 0, 0
+	if m == nil { // no range query found
+		return nil
 	}
-	rname = m[1]
+
+	rng := &Range{Rname: m[1]}
 
 	m = regexp.MustCompile(`POS\s*(>|>=|=)\s*(\d+)`).FindStringSubmatch(where)
-	if m == nil {
-		start = 0
-	} else {
-		start, _ = strconv.Atoi(m[2])
+	if m != nil {
+		rng.Start, _ = strconv.Atoi(m[2])
 	}
 
 	m = regexp.MustCompile(`POS\s*(<|<=)\s*(\d+)`).FindStringSubmatch(where)
 	if m == nil {
-		end = -1
+		rng.End = -1
 	} else {
-		end, _ = strconv.Atoi(m[2])
+		rng.End, _ = strconv.Atoi(m[2])
 	}
 
-	return rname, start, end
+	return rng
+}
+
+// getFileDescriptor returns a file descriptor that reads from src. It returns
+// os.Stdin if src is "-".
+func getFileDescriptor(src string) (*os.File, error) {
+	if src == "-" {
+		return os.Stdin, nil
+	}
+
+	return os.Open(src)
+}
+
+// getSamqlReaders returns a slice of samql readers that read from the inputs.
+func getSamqlReaders(inputs []string, isSam bool, parr int, rquery *Range) []*samql.Reader {
+
+	readers := make([]*samql.Reader, len(inputs))
+	for i, in := range inputs {
+		// Open input SAM/BAM file descriptor for reading.
+		fh, err := getFileDescriptor(in)
+		if err != nil {
+			log.Fatalf("cannot open file: %v", err)
+		}
+
+		// Create a samql Reader that reads from a SAM, BAM or indexed BAM file.
+		var r *samql.Reader
+		if isSam { // SAM
+			sr, err := sam.NewReader(fh)
+			if err != nil {
+				log.Fatalf("cannot create sam reader: %v", err)
+			}
+			r = samql.NewReader(sr)
+		} else { // BAM or Indexed BAM
+			br, err := bam.NewReader(fh, parr)
+			if err != nil {
+				log.Fatalf("cannot create bam reader: %v", err)
+			}
+			// Check if BAM is indexed. Look for file with .bai suffix.
+			if len(in) > 4 {
+				idxf, err := os.Open(in + ".bai")
+				if err != nil {
+					idxf, err = os.Open(in[:len(in)-4] + ".bai")
+				}
+				if err == nil { // if index is found
+					idxbr, err := bamx.New(br, bufio.NewReader(idxf))
+					if err != nil {
+						log.Fatalf("opening file failed: %v", err)
+					}
+					if rquery != nil {
+						_ = idxbr.AddQuery(rquery.Rname, rquery.Start, rquery.End)
+					}
+					r = samql.NewReader(idxbr)
+				}
+			}
+			if r == nil {
+				r = samql.NewReader(br)
+			}
+		}
+		readers[i] = r
+	}
+	return readers
 }
 
 // writer defines a common interface for a bam and sam writer.
