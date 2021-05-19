@@ -98,6 +98,11 @@ func NewReader(r readerSAM) *Reader {
 	}
 }
 
+// AppendFilter appends the provided filter to reader r.
+func (r *Reader) AppendFilter(f FilterFunc) {
+	r.Filters = append(r.Filters, f)
+}
+
 // Header returns the Header of the underlying reader r.
 func (r *Reader) Header() *sam.Header {
 	return r.r.Header()
