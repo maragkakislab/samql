@@ -65,6 +65,8 @@ const (
 	DUPLICATE
 	// SUPPLEMENTARY corresponds to SAM flag 0x800.
 	SUPPLEMENTARY
+	// END corresponds to the alignment end.
+	END
 )
 
 // readerSAM is a common interface for SAM/BAM/Indexed BAM readers and is used
@@ -362,6 +364,7 @@ var getPlaceholder = map[string]interface{}{
 	"PNEXT":  placeholderInt(func(r *sam.Record) int { return r.MatePos }),
 	"TLEN":   placeholderInt(func(r *sam.Record) int { return r.TempLen }),
 	"LENGTH": placeholderInt(func(r *sam.Record) int { return r.Len() }),
+	"END":    placeholderInt(func(r *sam.Record) int { return r.End() }),
 
 	// getPlaceholderBool associates a sam flag Keyword with a placeholderBool.
 	"PAIRED":        placeholderBool(func(r *sam.Record) bool { return r.Flags&sam.Paired == sam.Paired }),

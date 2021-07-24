@@ -100,6 +100,7 @@ SECONDARY     // SECONDARY corresponds to SAM flag 0x100.
 QCFAIL        // QCFAIL corresponds to SAM flag 0x200.
 DUPLICATE     // DUPLICATE corresponds to SAM flag 0x400.
 SUPPLEMENTARY // SUPPLEMENTARY corresponds to SAM flag 0x800.
+END           // END corresponds to the alignment end.
 ```
 
 
