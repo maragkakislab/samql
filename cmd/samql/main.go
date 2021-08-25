@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 
 	arg "github.com/alexflint/go-arg"
@@ -17,7 +18,7 @@ import (
 )
 
 // VERSION defines the program version.
-const VERSION = "1.5"
+const VERSION = "1.6"
 
 // Opts is the struct with the options that the program accepts.
 // Opts encapsulates common command line options.
@@ -26,9 +27,8 @@ type Opts struct {
 	Where string   `arg:"" help:"SQL clause to match records"`
 	Count bool     `arg:"-c" help:"print only the count of matching records"`
 	Sam   bool     `arg:"-S" help:"interpret input as SAM, otherwise BAM"`
-	Parr  int      `arg:"-p" help:"Number of cores for parallelization"`
+	Parr  int      `arg:"-p" help:"Number of cores for parallelization. Uses all available, if not provided."`
 	OBam  bool     `arg:"-b" help:"Output BAM"`
-	OParr int      `arg:"-t" help:"Number of cores for output compression parallelization"`
 }
 
 // Version returns the program name and version.
@@ -47,11 +47,17 @@ func main() {
 	var opts Opts
 	arg.MustParse(&opts)
 
+	// Distribute threads to IO.
+	if opts.Parr == 0 {
+		opts.Parr = runtime.GOMAXPROCS(0)
+	}
+	IParr, OParr := distributeParrToIO(opts.Parr, opts.Sam, opts.OBam)
+
 	// Capture potential range queries early to inform readers creation.
 	rquery := captureRangeQuery(opts.Where)
 
 	// Create samql readers that read from the inputs.
-	readers := getSamqlReaders(opts.Input, opts.Sam, opts.Parr, rquery)
+	readers := getSamqlReaders(opts.Input, opts.Sam, IParr, rquery)
 	defer func() { // Close all samql readers at the end.
 		for _, r := range readers {
 			if err := r.Close(); err != nil {
@@ -112,7 +118,7 @@ func main() {
 	// Open a new SAM/BAM writer.
 	var w writer
 	if opts.OBam {
-		w, err = bam.NewWriter(stdout, mergedHeader, opts.OParr)
+		w, err = bam.NewWriter(stdout, mergedHeader, OParr)
 	} else {
 		w, err = sam.NewWriter(stdout, mergedHeader, sam.FlagDecimal)
 	}
@@ -141,6 +147,32 @@ func main() {
 	if temp, ok := w.(*bam.Writer); ok {
 		temp.Close()
 	}
+}
+
+// distributeParrToIO distributes the threads P to the SAM/BAM
+// readers/writers. There is no performance benefit for threads higher than 4
+// on the input so the excess threads are allocated to BAM output, if
+// applicable.
+func distributeParrToIO(P int, ISam, OBam bool) (IParr, OParr int) {
+	if !OBam { // If output not BAM, no allocation is required.
+		return P, 0
+	}
+
+	if ISam { // If input is SAM, allocate everything to output BAM.
+		IParr = 0
+		OParr = P
+	} else if P > 7 {
+		IParr = 4
+		OParr = P - 4
+	} else if P < 2 {
+		IParr = 1
+		OParr = 1
+	} else if P <= 7 {
+		IParr = int(P / 2)
+		OParr = P - IParr
+	}
+
+	return IParr, OParr
 }
 
 func captureRangeQuery(where string) *Range {
