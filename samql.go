@@ -215,6 +215,10 @@ func Where(query string) (FilterFunc, error) {
 	// Build the Abstract Syntax Tree.
 	stmt, err := p.ParseStatement()
 	if err != nil {
+		e, ok := err.(*ql.ParseError)
+		if ok {
+			e.Pos.Char -= 24
+		}
 		return nil, err
 	}
 
