@@ -1,9 +1,11 @@
-# samql [![Go Report Card](https://goreportcard.com/badge/github.com/maragkakislab/samql)](https://goreportcard.com/report/github.com/maragkakislab/samql) [![Build Status](https://travis-ci.org/maragkakislab/samql.svg?branch=master)](https://travis-ci.org/maragkakislab/samql) [![GoDoc](https://godoc.org/github.com/maragkakislab/samql?status.svg)](https://godoc.org/github.com/maragkakislab/samql)
+# samql [![Go Report Card](https://goreportcard.com/badge/github.com/maragkakislab/samql)](https://goreportcard.com/report/github.com/maragkakislab/samql) [![GoDoc](https://godoc.org/github.com/maragkakislab/samql?status.svg)](https://godoc.org/github.com/maragkakislab/samql)
 SQL-like query language for the SAM/BAM file format
 
 ## Install
 
-Download the latest executable for your system [here](https://github.com/maragkakislab/samql/releases/latest/).
+Download the latest executable:
+
+[Latest](https://github.com/maragkakislab/samql/releases/latest/).
 
 Otherwise, to install the Go library and executable:
 
@@ -19,8 +21,9 @@ functionality.
 ## Usage
 
 ```bash
-Filters a SAM/BAM file using the provided SQL clause
-Usage: samql [--where WHERE] [--count] [--sam] [--parr PARR] [--obam] [--oparr OPARR] INPUT [INPUT ...]
+Filters a SAM/BAM file using the SQL clause provided
+samql 1.6
+Usage: samql [--where WHERE] [--count] [--sam] [--parr PARR] [--obam] INPUT [INPUT ...]
 
 Positional arguments:
   INPUT                  file (- for STDIN)
@@ -29,10 +32,8 @@ Options:
   --where WHERE          SQL clause to match records
   --count, -c            print only the count of matching records
   --sam, -S              interpret input as SAM, otherwise BAM
-  --parr PARR, -p PARR   Number of cores for parallelization
+  --parr PARR, -p PARR   Number of cores for parallelization. Uses all available, if not provided.
   --obam, -b             Output BAM
-  --oparr OPARR, -t OPARR
-                         Number of cores for output compression parallelization
   --help, -h             display this help and exit
   --version              display version and exit
 ```
