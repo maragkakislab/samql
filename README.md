@@ -22,7 +22,7 @@ functionality.
 
 ```bash
 Filters a SAM/BAM file using the SQL clause provided
-samql 1.6
+samql 1.7
 Usage: samql [--where WHERE] [--count] [--sam] [--parr PARR] [--obam] INPUT [INPUT ...]
 
 Positional arguments:
